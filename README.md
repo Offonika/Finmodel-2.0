@@ -1,53 +1,52 @@
 # Finmodel 2.0
 
-Python utilities for importing and analyzing financial data from the Wildberries marketplace.
+Python-утилиты для импорта и анализа финансовых данных с маркетплейса Wildberries.
 
-## Features
-- Import advertising campaigns, orders, stocks, tariffs and more using dedicated scripts.
-- Store imported records in `finmodel.db` for subsequent analysis.
+## Возможности
+- Импорт рекламных кампаний, заказов, остатков, тарифов и других данных с помощью отдельных скриптов.
+- Сохранение загруженных записей в `finmodel.db` для последующего анализа.
 
-## Installation
-1. Create and activate a virtual environment:
+## Установка
+1. Создайте и активируйте виртуальное окружение:
    ```bash
    python3 -m venv .venv
    source .venv/bin/activate
    ```
-2. Install dependencies:
+2. Установите зависимости:
    ```bash
    pip install -r requirements.txt
    ```
-3. Copy `config.example.yml` to `config.yml` and fill in database path, date ranges
-   and tokens. Environment variables with the same keys override the file values.
-4. Run a script via the package module or installed console entry point, e.g.:
+3. Скопируйте `config.example.yml` в `config.yml` и заполните путь к базе данных, диапазоны дат и токены. Переменные окружения с такими же ключами переопределяют значения файла.
+4. Запускайте нужный скрипт через модуль пакета или установленную консольную команду, например:
    ```bash
    python -m finmodel.scripts.saleswb_import_flat
-   # or after installing the package:
+   # либо после установки пакета:
    saleswb_import_flat
    ```
 
 ## Docker
-A Docker image can run any import script in an isolated environment.
+Docker-образ позволяет запускать любой скрипт импорта в изолированном окружении.
 
-Build the image:
+Соберите образ:
 
 ```bash
 docker build -t finmodel .
 ```
 
-Run an import with your configuration file mounted into the container:
+Запустите импорт, смонтировав файл конфигурации в контейнер:
 
 ```bash
 docker run --rm -v $(pwd)/config.yml:/app/config.yml finmodel
 ```
 
-Override the script with the `FINMODEL_SCRIPT` variable:
+Замените скрипт с помощью переменной `FINMODEL_SCRIPT`:
 
 ```bash
 docker run --rm -e FINMODEL_SCRIPT=finmodel.scripts.orderswb_import_flat \
   -v $(pwd)/config.yml:/app/config.yml finmodel
 ```
 
-To use PostgreSQL instead of SQLite, start the application with `docker-compose`:
+Чтобы использовать PostgreSQL вместо SQLite, поднимите приложение через `docker-compose`:
 
 ```yaml
 version: "3.8"
@@ -72,41 +71,41 @@ volumes:
   pgdata:
 ```
 
-Launch the stack:
+Запустите стек:
 
 ```bash
 docker-compose up --build
 ```
 
-## Scheduling
-For regular data imports, schedule the container execution.
+## Планирование
+Для регулярного импорта данных запланируйте выполнение контейнера.
 
 ### Linux (cron)
-Run `crontab -e` and add a line:
+Выполните `crontab -e` и добавьте строку:
 
 ```
 0 3 * * * docker run --rm -v /path/to/config.yml:/app/config.yml finmodel
 ```
 
-This example runs the import every day at 03:00.
+Этот пример запускает импорт каждый день в 03:00.
 
-### Windows (Task Scheduler)
-Create a basic task that runs:
+### Windows (Планировщик задач)
+Создайте простую задачу, которая выполняет:
 
 ```
 docker run --rm -v C:\path\to\config.yml:/app/config.yml finmodel
 ```
 
-Set the trigger according to the required interval.
+Настройте триггер с нужным интервалом.
 
-## Development
-- Follow instructions in `AGENTS.md` for coding standards and testing.
-- Ensure new scripts include descriptive docstrings and a guarded `main` entry point.
-- Run `python -m compileall -q .` to verify syntax before committing.
+## Разработка
+- Следуйте инструкциям в `AGENTS.md` по стандартам кодирования и тестированию.
+- Убедитесь, что новые скрипты содержат информативные docstring и защищённую точку входа `main`.
+- Перед коммитом выполните `python -m compileall -q .` для проверки синтаксиса.
 
-## Logs
-All scripts emit logs to the `log/finmodel.log` file. Create the `log/` directory if it
-does not exist to keep collected logs.
+## Логи
+Все скрипты пишут логи в файл `log/finmodel.log`. Создайте каталог `log/`, если его нет, чтобы сохранять собранные логи.
 
-## License
-Specify the project license if applicable.
+## Лицензия
+Укажите лицензию проекта при необходимости.
+
