@@ -57,89 +57,83 @@ def read_nmids_from_sqlite(db_path: str, sql: Optional[str]) -> List[str]:
     p = Path(db_path)
     if not p.exists():
         raise SystemExit(f"SQLite файл не найден: {p}")
-    con = sqlite3.connect(str(p))
-    con.row_factory = sqlite3.Row
-    cur = con.cursor()
-    if sql:
-        rows = cur.execute(sql).fetchall()
-    else:
-        rows = []
-        for q in (
-            "SELECT DISTINCT nmId AS nmId FROM katalog WHERE nmId IS NOT NULL",
-            "SELECT DISTINCT nm_id AS nmId FROM katalog WHERE nm_id IS NOT NULL",
-        ):
-            try:
-                rows = cur.execute(q).fetchall()
-                if rows:
-                    break
-            except sqlite3.Error:
-                continue
-        if not rows:
-            con.close()
-            raise SystemExit(
-                "Не найдено поле nmId. Задай SQL через --sql, напр.:\n"
-                '  --sql "SELECT DISTINCT nm_id AS nmId FROM katalog WHERE nm_id IS NOT NULL"'
-            )
+    with sqlite3.connect(str(p)) as con:
+        con.row_factory = sqlite3.Row
+        with con.cursor() as cur:
+            if sql:
+                rows = cur.execute(sql).fetchall()
+            else:
+                rows = []
+                for q in (
+                    "SELECT DISTINCT nmId AS nmId FROM katalog WHERE nmId IS NOT NULL",
+                    "SELECT DISTINCT nm_id AS nmId FROM katalog WHERE nm_id IS NOT NULL",
+                ):
+                    try:
+                        rows = cur.execute(q).fetchall()
+                        if rows:
+                            break
+                    except sqlite3.Error:
+                        continue
+                if not rows:
+                    raise SystemExit(
+                        "Не найдено поле nmId. Задай SQL через --sql, напр.:\n"
+                        '  --sql "SELECT DISTINCT nm_id AS nmId FROM katalog WHERE nm_id IS NOT NULL"'
+                    )
     nmids = [str(r["nmId"]).strip() for r in rows if r["nmId"] not in (None, "")]
-    con.close()
     return nmids
 
 def sqlite_ensure_table(con: sqlite3.Connection, table: str):
-    cur = con.cursor()
-    cur.execute(
-        f"""
-        CREATE TABLE IF NOT EXISTS {table} (
-            nmId TEXT PRIMARY KEY,
-            priceU INTEGER,
-            salePriceU INTEGER,
-            sale REAL,
-            price_rub REAL,
-            salePrice_rub REAL,
-            discount_total_pct REAL,
-            spp_pct_approx REAL,
-            updated_at_utc TEXT NOT NULL
+    with con.cursor() as cur:
+        cur.execute(
+            f"""
+            CREATE TABLE IF NOT EXISTS {table} (
+                nmId TEXT PRIMARY KEY,
+                priceU INTEGER,
+                salePriceU INTEGER,
+                sale REAL,
+                price_rub REAL,
+                salePrice_rub REAL,
+                discount_total_pct REAL,
+                spp_pct_approx REAL,
+                updated_at_utc TEXT NOT NULL
+            )
+            """
         )
-        """
-    )
-    cur.execute(f"CREATE UNIQUE INDEX IF NOT EXISTS ux_{table}_nmId ON {table}(nmId)")
-    con.commit()
+        cur.execute(f"CREATE UNIQUE INDEX IF NOT EXISTS ux_{table}_nmId ON {table}(nmId)")
 
 def write_to_sqlite(db_path: str, table: str, rows: List[Dict[str, Any]]) -> None:
     if not rows:
         logging.info("Нет строк для записи в SQLite — пропуск.")
         return
-    con = sqlite3.connect(db_path)
-    sqlite_ensure_table(con, table)
-    cur = con.cursor()
-    sql = f"""
-        INSERT INTO {table}
-        (nmId, priceU, salePriceU, sale, price_rub, salePrice_rub, discount_total_pct, spp_pct_approx, updated_at_utc)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(nmId) DO UPDATE SET
-            priceU=excluded.priceU,
-            salePriceU=excluded.salePriceU,
-            sale=excluded.sale,
-            price_rub=excluded.price_rub,
-            salePrice_rub=excluded.salePrice_rub,
-            discount_total_pct=excluded.discount_total_pct,
-            spp_pct_approx=excluded.spp_pct_approx,
-            updated_at_utc=excluded.updated_at_utc
-    """
-    data = [(
-        r.get("nmId"),
-        r.get("priceU"),
-        r.get("salePriceU"),
-        r.get("sale"),
-        r.get("price_rub"),
-        r.get("salePrice_rub"),
-        r.get("discount_total_pct"),
-        r.get("spp_pct_approx"),
-        r.get("updated_at_utc"),
-    ) for r in rows]
-    cur.executemany(sql, data)
-    con.commit()
-    cur.close()
-    con.close()
+    with sqlite3.connect(db_path) as con:
+        sqlite_ensure_table(con, table)
+        with con.cursor() as cur:
+            sql = f"""
+                INSERT INTO {table}
+                (nmId, priceU, salePriceU, sale, price_rub, salePrice_rub, discount_total_pct, spp_pct_approx, updated_at_utc)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(nmId) DO UPDATE SET
+                    priceU=excluded.priceU,
+                    salePriceU=excluded.salePriceU,
+                    sale=excluded.sale,
+                    price_rub=excluded.price_rub,
+                    salePrice_rub=excluded.salePrice_rub,
+                    discount_total_pct=excluded.discount_total_pct,
+                    spp_pct_approx=excluded.spp_pct_approx,
+                    updated_at_utc=excluded.updated_at_utc
+            """
+            data = [(
+                r.get("nmId"),
+                r.get("priceU"),
+                r.get("salePriceU"),
+                r.get("sale"),
+                r.get("price_rub"),
+                r.get("salePrice_rub"),
+                r.get("discount_total_pct"),
+                r.get("spp_pct_approx"),
+                r.get("updated_at_utc"),
+            ) for r in rows]
+            cur.executemany(sql, data)
     logging.info("Данные записаны в SQLite: %s (%d строк)", table, len(rows))
 
 # ----- HTTP / WB -----

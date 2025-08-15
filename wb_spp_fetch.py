@@ -108,45 +108,41 @@ def fetch_card(nm_id: int) -> Tuple[int, int, int, int, Optional[int]]:
 # ──────────────────────────────────────────────────────────────────────────────
 def main() -> None:
     print("Используем базу:", DB_PATH)
-    con = sqlite3.connect(DB_PATH)
-    cur = con.cursor()
-    cur.execute(CREATE_WB_SPP_SQL)
-    con.commit()
+    with sqlite3.connect(DB_PATH) as con:
+        with con.cursor() as cur:
+            cur.execute(CREATE_WB_SPP_SQL)
 
-    try:
-        nm_ids = get_nm_ids(cur)
-    except sqlite3.OperationalError:
-        print("❌ Таблица katalog не найдена. Создайте её и заполните nmID.")
-        return
+            try:
+                nm_ids = get_nm_ids(cur)
+            except sqlite3.OperationalError:
+                print("❌ Таблица katalog не найдена. Создайте её и заполните nmID.")
+                return
 
-    print(f"Всего nmID: {len(nm_ids)}")
+            print(f"Всего nmID: {len(nm_ids)}")
 
-    batch: list[tuple[int, int, int, int, Optional[int]]] = []
-    for i, nm in enumerate(nm_ids, 1):
-        try:
-            row = fetch_card(nm)
-        except Exception as e:
-            print(f"[{i}/{len(nm_ids)}] nmID={nm} ❌ {e}")
-            time.sleep(SLEEP_BETWEEN_CALLS)
-            continue
+            batch: list[tuple[int, int, int, int, Optional[int]]] = []
+            for i, nm in enumerate(nm_ids, 1):
+                try:
+                    row = fetch_card(nm)
+                except Exception as e:
+                    print(f"[{i}/{len(nm_ids)}] nmID={nm} ❌ {e}")
+                    time.sleep(SLEEP_BETWEEN_CALLS)
+                    continue
 
-        batch.append(row)
-        if len(batch) >= BATCH_SIZE:
-            cur.executemany(INSERT_SQL, batch)
-            con.commit()
-            batch.clear()
+                batch.append(row)
+                if len(batch) >= BATCH_SIZE:
+                    cur.executemany(INSERT_SQL, batch)
+                    batch.clear()
 
-        print(
-            f"[{i}/{len(nm_ids)}] nmID={row[0]} "
-            f"priceU={row[1]} salePriceU={row[2]} sale%={row[3]} spp={row[4]}"
-        )
-        time.sleep(SLEEP_BETWEEN_CALLS)
+                print(
+                    f"[{i}/{len(nm_ids)}] nmID={row[0]} "
+                    f"priceU={row[1]} salePriceU={row[2]} sale%={row[3]} spp={row[4]}"
+                )
+                time.sleep(SLEEP_BETWEEN_CALLS)
 
-    if batch:
-        cur.executemany(INSERT_SQL, batch)
-        con.commit()
+            if batch:
+                cur.executemany(INSERT_SQL, batch)
 
-    con.close()
     print("Готово.")
 
 

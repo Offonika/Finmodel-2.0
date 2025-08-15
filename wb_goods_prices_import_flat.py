@@ -112,33 +112,32 @@ def read_nmids_from_sqlite(db_path: str, sql: str | None) -> List[str]:
     if not p.exists():
         raise SystemExit(f"SQLite файл не найден: {p}")
 
-    conn = sqlite3.connect(str(p))
-    conn.row_factory = sqlite3.Row
-    cur = conn.cursor()
+    with sqlite3.connect(str(p)) as conn:
+        conn.row_factory = sqlite3.Row
+        with conn.cursor() as cur:
 
-    # Если SQL не задан, пробуем два стандартных варианта
-    if not sql:
-        try_sql = [
-            "SELECT DISTINCT nmId AS nmId FROM katalog WHERE nmId IS NOT NULL",
-            "SELECT DISTINCT nm_id AS nmId FROM katalog WHERE nm_id IS NOT NULL",
-        ]
-        rows = []
-        for q in try_sql:
-            try:
-                rows = cur.execute(q).fetchall()
-                if rows:
-                    sql = q
-                    break
-            except sqlite3.Error:
-                continue
-        if not rows:
-            raise SystemExit("Не удалось автоматически найти колонку nmId / nm_id в таблице 'katalog'. "
-                             "Укажи SQL вручную через --sql.")
-    else:
-        rows = cur.execute(sql).fetchall()
+            # Если SQL не задан, пробуем два стандартных варианта
+            if not sql:
+                try_sql = [
+                    "SELECT DISTINCT nmId AS nmId FROM katalog WHERE nmId IS NOT NULL",
+                    "SELECT DISTINCT nm_id AS nmId FROM katalog WHERE nm_id IS NOT NULL",
+                ]
+                rows = []
+                for q in try_sql:
+                    try:
+                        rows = cur.execute(q).fetchall()
+                        if rows:
+                            sql = q
+                            break
+                    except sqlite3.Error:
+                        continue
+                if not rows:
+                    raise SystemExit("Не удалось автоматически найти колонку nmId / nm_id в таблице 'katalog'. "
+                                     "Укажи SQL вручную через --sql.")
+            else:
+                rows = cur.execute(sql).fetchall()
 
     nmids = [str(r["nmId"]).strip() for r in rows if r["nmId"] is not None and str(r["nmId"]).strip() != ""]
-    conn.close()
     return nmids
 
 
