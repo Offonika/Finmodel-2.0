@@ -25,45 +25,43 @@ WB_FIELDS = [
 ]
 
 with sqlite3.connect(db_path) as conn:
-    cursor = conn.cursor()
+    with conn.cursor() as cursor:
 
-    # --- Пересоздаём таблицу для плоских данных ---
-    col_defs = (
-        'org_id INTEGER, '
-        'Организация TEXT, '
-        + ', '.join(f"{f} TEXT" for f in WB_FIELDS) + ', '
-        'PRIMARY KEY (org_id, rrd_id)'
-    )
-    cursor.execute("DROP TABLE IF EXISTS FinOtchetFlat;")
-    cursor.execute(f"CREATE TABLE FinOtchetFlat ({col_defs});")
-    conn.commit()
+        # --- Пересоздаём таблицу для плоских данных ---
+        col_defs = (
+            'org_id INTEGER, '
+            'Организация TEXT, '
+            + ', '.join(f"{f} TEXT" for f in WB_FIELDS) + ', '
+            'PRIMARY KEY (org_id, rrd_id)'
+        )
+        cursor.execute("DROP TABLE IF EXISTS FinOtchetFlat;")
+        cursor.execute(f"CREATE TABLE FinOtchetFlat ({col_defs});")
 
-    # --- Загружаем и парсим все строки ---
-    cursor.execute("SELECT org_id, Организация, json_data FROM FinOtchet;")
-    rows = cursor.fetchall()
-    total = 0
-    errors = 0
+        # --- Загружаем и парсим все строки ---
+        cursor.execute("SELECT org_id, Организация, json_data FROM FinOtchet;")
+        rows = cursor.fetchall()
+        total = 0
+        errors = 0
 
-    for org_id, org_name, json_str in rows:
-        try:
-            # Сначала пробуем распарсить как JSON, если не получилось — как Python dict через ast.literal_eval
+        for org_id, org_name, json_str in rows:
             try:
-                d = json.loads(json_str)
-            except Exception:
-                d = ast.literal_eval(json_str)
-            values = [org_id, org_name] + [str(d.get(f, "")) if d.get(f) is not None else "" for f in WB_FIELDS]
-            placeholders = ",".join(["?"] * (2 + len(WB_FIELDS)))
-            cursor.execute(f"INSERT OR REPLACE INTO FinOtchetFlat VALUES ({placeholders})", values)
-            total += 1
-            if total % 1000 == 0:
-                print(f"  {total} строк обработано...")
-        except Exception as e:
-            print(f"Ошибка парсинга/org_id={org_id}: {e}")
-            errors += 1
+                # Сначала пробуем распарсить как JSON, если не получилось — как Python dict через ast.literal_eval
+                try:
+                    d = json.loads(json_str)
+                except Exception:
+                    d = ast.literal_eval(json_str)
+                values = [org_id, org_name] + [str(d.get(f, "")) if d.get(f) is not None else "" for f in WB_FIELDS]
+                placeholders = ",".join(["?"] * (2 + len(WB_FIELDS)))
+                cursor.execute(f"INSERT OR REPLACE INTO FinOtchetFlat VALUES ({placeholders})", values)
+                total += 1
+                if total % 1000 == 0:
+                    print(f"  {total} строк обработано...")
+            except Exception as e:
+                print(f"Ошибка парсинга/org_id={org_id}: {e}")
+                errors += 1
 
-    conn.commit()
-    print(f"\n✅ Всего записей обработано и вставлено: {total}")
-    if errors:
-        print(f"❗ Были ошибки парсинга: {errors} записей не обработаны")
+        print(f"\n✅ Всего записей обработано и вставлено: {total}")
+        if errors:
+            print(f"❗ Были ошибки парсинга: {errors} записей не обработаны")
 
 print("Готово! Таблица FinOtchetFlat содержит плоские данные для PowerBI/Excel.")
