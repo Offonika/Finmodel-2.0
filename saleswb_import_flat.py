@@ -1,14 +1,17 @@
-from pathlib import Path
-import sqlite3
-import requests
 import json
+import sqlite3
 import time
+from pathlib import Path
+
 import pandas as pd
+import requests
+from requests.adapters import HTTPAdapter, Retry
 
 from utils.settings import find_setting, parse_date
 
 # Максимальный размер страницы, заявленный в документации WB API
 PAGE_LIMIT = 100_000
+REQUEST_TIMEOUT = 60
 
 # --- Пути ---
 base_dir = Path(__file__).resolve().parent.parent
@@ -17,7 +20,7 @@ xls_path = base_dir / "Finmodel.xlsm"
 
 # --- Получаем период загрузки из Excel ---
 period_start = parse_date(find_setting("ПериодНачало")).strftime("%Y-%m-%dT%H:%M:%S")
-period_end   = parse_date(find_setting("ПериодКонец")).strftime("%Y-%m-%dT%H:%M:%S")
+period_end = parse_date(find_setting("ПериодКонец")).strftime("%Y-%m-%dT%H:%M:%S")
 print(f"Период загрузки продаж: {period_start} .. {period_end}")
 
 # --- Чтение организаций ---
@@ -26,10 +29,34 @@ df_orgs = df_orgs[["id", "Организация", "Token_WB"]].dropna()
 
 # --- Все возможные поля продажи (WB-API) ---
 SALES_FIELDS = [
-    "date", "lastChangeDate", "warehouseName", "warehouseType", "countryName", "oblastOkrugName", "regionName",
-    "supplierArticle", "nmId", "barcode", "category", "subject", "brand", "techSize", "incomeID", "isSupply",
-    "isRealization", "totalPrice", "discountPercent", "spp", "paymentSaleAmount", "forPay", "finishedPrice",
-    "priceWithDisc", "saleID", "sticker", "gNumber", "srid"
+    "date",
+    "lastChangeDate",
+    "warehouseName",
+    "warehouseType",
+    "countryName",
+    "oblastOkrugName",
+    "regionName",
+    "supplierArticle",
+    "nmId",
+    "barcode",
+    "category",
+    "subject",
+    "brand",
+    "techSize",
+    "incomeID",
+    "isSupply",
+    "isRealization",
+    "totalPrice",
+    "discountPercent",
+    "spp",
+    "paymentSaleAmount",
+    "forPay",
+    "finishedPrice",
+    "priceWithDisc",
+    "saleID",
+    "sticker",
+    "gNumber",
+    "srid",
 ]
 
 # --- Подключение к базе и создание плоской таблицы ---
@@ -37,19 +64,40 @@ conn = sqlite3.connect(db_path)
 cursor = conn.cursor()
 fields_sql = ", ".join([f"{f} TEXT" for f in SALES_FIELDS])
 cursor.execute("DROP TABLE IF EXISTS SalesWBFlat;")
-cursor.execute(f"""
+cursor.execute(
+    f"""
 CREATE TABLE SalesWBFlat (
     org_id INTEGER,
     Организация TEXT,
     {fields_sql},
     PRIMARY KEY (org_id, srid)
 );
-""")
+"""
+)
 conn.commit()
+
+
+# --- HTTP session ---
+def make_http() -> requests.Session:
+    s = requests.Session()
+    retries = Retry(
+        total=5,
+        read=5,
+        connect=5,
+        backoff_factor=0.5,
+        status_forcelist=(429, 500, 502, 503, 504),
+        allowed_methods=frozenset(["GET"]),
+    )
+    s.mount("https://", HTTPAdapter(max_retries=retries))
+    s.mount("http://", HTTPAdapter(max_retries=retries))
+    return s
+
 
 # --- API запрос ---
 url = "https://statistics-api.wildberries.ru/api/v1/supplier/sales"
 headers_template = {"Content-Type": "application/json"}
+
+http = make_http()
 
 for _, row in df_orgs.iterrows():
     org_id = row["id"]
@@ -68,7 +116,7 @@ for _, row in df_orgs.iterrows():
         params = {"dateFrom": date_from}
         print(f"  📤 Запрос page {page}, dateFrom={date_from} ...", end=" ", flush=True)
         try:
-            resp = requests.get(url, params=params, headers=headers, timeout=60)
+            resp = http.get(url, params=params, headers=headers, timeout=REQUEST_TIMEOUT)
             if resp.status_code != 200:
                 print(f"\n  ⚠️ Запрос вернул статус {resp.status_code}: {resp.text}")
                 time.sleep(5)
@@ -90,10 +138,13 @@ for _, row in df_orgs.iterrows():
             rows.append(flat)
         try:
             placeholders = ",".join(["?"] * (2 + len(SALES_FIELDS)))
-            cursor.executemany(f"""
+            cursor.executemany(
+                f"""
                 INSERT OR REPLACE INTO SalesWBFlat
                 VALUES ({placeholders})
-            """, rows)
+            """,
+                rows,
+            )
             conn.commit()
         except Exception as e:
             print(f"\n  ⚠️ Ошибка вставки: {e}")
