@@ -4,8 +4,9 @@ from pathlib import Path
 
 import pytest
 
-sys.path.append(str(Path(__file__).resolve().parents[1]))
-from utils.settings import parse_date
+sys.path.append(str(Path(__file__).resolve().parents[1] / "src"))
+from finmodel.utils.settings import parse_date
+
 
 @pytest.mark.parametrize(
     "raw, expected",

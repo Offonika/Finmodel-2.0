@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "finmodel"
+version = "0.1.0"
+description = "Utilities for importing and analyzing Wildberries financial data"
+readme = "README.md"
+requires-python = ">=3.10"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[project.scripts]
+adv_campaigns_details_import_flat = "finmodel.scripts.adv_campaigns_details_import_flat:main"
+adv_campaigns_import_flat = "finmodel.scripts.adv_campaigns_import_flat:main"
+adv_fullstats_import_flat = "finmodel.scripts.adv_fullstats_import_flat:main"
+finotchet_import = "finmodel.scripts.finotchet_import:main"
+katalog = "finmodel.scripts.katalog:main"
+nm_report_history_import = "finmodel.scripts.nm_report_history_import:main"
+orderswb_import_flat = "finmodel.scripts.orderswb_import_flat:main"
+paid_storage_import_flat = "finmodel.scripts.paid_storage_import_flat:main"
+paid_storage_import_incremental = "finmodel.scripts.paid_storage_import_incremental:main"
+saleswb_import_flat = "finmodel.scripts.saleswb_import_flat:main"
+stockswb_import_flat = "finmodel.scripts.stockswb_import_flat:main"
+wb_goods_prices_import_flat = "finmodel.scripts.wb_goods_prices_import_flat:main"
+wb_spp_fetch = "finmodel.scripts.wb_spp_fetch:main"
+wb_spp_fetch_final = "finmodel.scripts.wb_spp_fetch_final:main"
+wb_spp_fetch_simple = "finmodel.scripts.wb_spp_fetch_simple:main"
+wb_tariffs_box_import = "finmodel.scripts.wb_tariffs_box_import:main"
+wbtariffs_commission_import = "finmodel.scripts.wbtariffs_commission_import:main"
