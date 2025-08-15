@@ -1,0 +1,7 @@
+black
+isort
+openpyxl
+pandas
+pytest
+requests
+PyYAML>=6.0

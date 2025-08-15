@@ -6,16 +6,19 @@ Python utilities for importing and analyzing financial data from the Wildberries
 - Import advertising campaigns, orders, stocks, tariffs and more using dedicated scripts.
 - Store imported records in `finmodel.db` for subsequent analysis.
 
-## Quick start
-1. Create a virtual environment and install dependencies:
+## Installation
+1. Create and activate a virtual environment:
    ```bash
-   python3 -m venv venv
-   source venv/bin/activate
-   pip install -r requirements.txt  # if available
+   python3 -m venv .venv
+   source .venv/bin/activate
    ```
-2. Copy `config.example.yml` to `config.yml` and fill in database path, date ranges
+2. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+3. Copy `config.example.yml` to `config.yml` and fill in database path, date ranges
    and tokens. Environment variables with the same keys override the file values.
-3. Run a script via the package module or installed console entry point, e.g.:
+4. Run a script via the package module or installed console entry point, e.g.:
    ```bash
    python -m finmodel.scripts.saleswb_import_flat
    # or after installing the package:
