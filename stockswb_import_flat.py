@@ -1,14 +1,17 @@
-from pathlib import Path
-import sqlite3
-import requests
 import json
+import sqlite3
 import time
+from pathlib import Path
+
 import pandas as pd
+import requests
+from requests.adapters import HTTPAdapter, Retry
 
 from utils.settings import find_setting, parse_date
 
 # Максимальный размер страницы, заявленный в документации WB API
 PAGE_LIMIT = 100_000
+REQUEST_TIMEOUT = 60
 
 # --- Пути ---
 base_dir = Path(__file__).resolve().parent.parent
@@ -25,9 +28,24 @@ df_orgs = df_orgs[["id", "Организация", "Token_WB"]].dropna()
 
 # --- Все возможные поля остатков (WB-API) ---
 STOCKS_FIELDS = [
-    "lastChangeDate", "warehouseName", "supplierArticle", "nmId", "barcode", "quantity", "inWayToClient",
-    "inWayFromClient", "quantityFull", "category", "subject", "brand", "techSize", "Price", "Discount",
-    "isSupply", "isRealization", "SCCode"
+    "lastChangeDate",
+    "warehouseName",
+    "supplierArticle",
+    "nmId",
+    "barcode",
+    "quantity",
+    "inWayToClient",
+    "inWayFromClient",
+    "quantityFull",
+    "category",
+    "subject",
+    "brand",
+    "techSize",
+    "Price",
+    "Discount",
+    "isSupply",
+    "isRealization",
+    "SCCode",
 ]
 
 # --- Пересоздание таблицы ---
@@ -35,19 +53,40 @@ conn = sqlite3.connect(db_path)
 cursor = conn.cursor()
 fields_sql = ", ".join([f"{f} TEXT" for f in STOCKS_FIELDS])
 cursor.execute("DROP TABLE IF EXISTS StocksWBFlat;")
-cursor.execute(f"""
+cursor.execute(
+    f"""
 CREATE TABLE StocksWBFlat (
     org_id INTEGER,
     Организация TEXT,
     {fields_sql},
     PRIMARY KEY (org_id, nmId, warehouseName)
 );
-""")
+"""
+)
 conn.commit()
+
+
+# --- HTTP session ---
+def make_http() -> requests.Session:
+    s = requests.Session()
+    retries = Retry(
+        total=5,
+        read=5,
+        connect=5,
+        backoff_factor=0.5,
+        status_forcelist=(429, 500, 502, 503, 504),
+        allowed_methods=frozenset(["GET"]),
+    )
+    s.mount("https://", HTTPAdapter(max_retries=retries))
+    s.mount("http://", HTTPAdapter(max_retries=retries))
+    return s
+
 
 # --- API-запрос ---
 url = "https://statistics-api.wildberries.ru/api/v1/supplier/stocks"
 headers_template = {"Content-Type": "application/json"}
+
+http = make_http()
 
 for _, row in df_orgs.iterrows():
     org_id = row["id"]
@@ -66,7 +105,7 @@ for _, row in df_orgs.iterrows():
         params = {"dateFrom": date_from}
         print(f"  📤 Запрос page {page}, dateFrom={date_from} ...", end=" ", flush=True)
         try:
-            resp = requests.get(url, params=params, headers=headers, timeout=60)
+            resp = http.get(url, params=params, headers=headers, timeout=REQUEST_TIMEOUT)
             if resp.status_code != 200:
                 print(f"\n  ⚠️ Запрос вернул статус {resp.status_code}: {resp.text}")
                 time.sleep(5)
@@ -88,10 +127,13 @@ for _, row in df_orgs.iterrows():
             rows.append(flat)
         try:
             placeholders = ",".join(["?"] * (2 + len(STOCKS_FIELDS)))
-            cursor.executemany(f"""
+            cursor.executemany(
+                f"""
                 INSERT OR REPLACE INTO StocksWBFlat
                 VALUES ({placeholders})
-            """, rows)
+            """,
+                rows,
+            )
             conn.commit()
         except Exception as e:
             print(f"\n  ⚠️ Ошибка вставки: {e}")
