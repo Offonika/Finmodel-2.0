@@ -6,7 +6,10 @@ from pathlib import Path
 import pandas as pd
 import requests
 
+from finmodel.logger import get_logger
 from finmodel.utils.settings import load_config
+
+logger = get_logger(__name__)
 
 
 def main(config=None):
@@ -15,7 +18,7 @@ def main(config=None):
     base_dir = Path(__file__).resolve().parents[3]
     db_path = Path(config.get("db_path", base_dir / "finmodel.db"))
 
-    print(f"DB:  {db_path}")
+    logger.info("DB: %s", db_path)
 
     # ---------- Helpers ----------
     def iso_date(d: date) -> str:
@@ -30,14 +33,14 @@ def main(config=None):
 
     def sleep_log(sec: float, msg=""):
         if msg:
-            print(msg)
+            logger.info(msg)
         time.sleep(sec)
 
     # ---------- Orgs ----------
     df_orgs = pd.DataFrame(config.get("organizations", []))
     df_orgs = df_orgs[["id", "Организация", "Token_WB"]].dropna()
     if df_orgs.empty:
-        print("❗ Конфигурация не содержит организаций с токенами.")
+        logger.error("Конфигурация не содержит организаций с токенами.")
         raise SystemExit(1)
 
     # ---------- DB ----------
@@ -152,43 +155,45 @@ def main(config=None):
         org_name = str(org["Организация"])
         token = str(org["Token_WB"]).strip()
 
-        print(f"\n→ Организация: {org_name} (ID={org_id})")
+        logger.info("→ Организация: %s (ID=%s)", org_name, org_id)
 
         start_d = get_org_start_date(org_id)
         end_d = today
 
         if start_d > end_d:
-            print(f"  Нечего догружать (макс.дата уже {start_d - timedelta(days=1)}). Пропуск.")
+            logger.info(
+                "  Нечего догружать (макс.дата уже %s). Пропуск.", start_d - timedelta(days=1)
+            )
             continue
 
-        print(f"  Инкремент: {start_d} .. {end_d}")
+        logger.info("  Инкремент: %s .. %s", start_d, end_d)
 
         for win_from, win_to in daterange_8d(start_d, end_d):
             df_s = iso_date(win_from)
             dt_s = iso_date(win_to)
-            print(f"  окно: {df_s} .. {dt_s}")
+            logger.info("  окно: %s .. %s", df_s, dt_s)
 
             # 1) Создаём задание (лимит 1/мин, всплеск 5)
             try:
                 r = create_task(token, df_s, dt_s)
                 if r.status_code == 429:
-                    print("   429 на create. Жду 65 сек и повторю…")
+                    logger.warning("   429 на create. Жду 65 сек и повторю…")
                     sleep_log(65)
                     r = create_task(token, df_s, dt_s)
                 if r.status_code == 401:
-                    print("   ❗ 401 Unauthorized. Пропускаю всю организацию.")
+                    logger.error("   401 Unauthorized. Пропускаю всю организацию.")
                     break
                 if r.status_code != 200:
-                    print(f"   ⚠️ Ошибка create: {r.status_code} {r.text[:200]}")
+                    logger.warning("   Ошибка create: %s %s", r.status_code, r.text[:200])
                     sleep_log(2)
                     continue
                 task_id = r.json().get("data", {}).get("taskId")
                 if not task_id:
-                    print("   ⚠️ taskId не получен.")
+                    logger.warning("   taskId не получен.")
                     continue
-                print(f"   taskId: {task_id}")
+                logger.info("   taskId: %s", task_id)
             except Exception as e:
-                print(f"   ⚠️ Ошибка create_task: {e}")
+                logger.warning("   Ошибка create_task: %s", e)
                 continue
 
             # 2) Ждём статус done (лимит 1/5сек)
@@ -198,25 +203,25 @@ def main(config=None):
                 try:
                     st = get_status(token, task_id)
                     if st.status_code == 429:
-                        print("    429 на status. Жду 6 сек…")
+                        logger.warning("    429 на status. Жду 6 сек…")
                         sleep_log(6)
                         continue
                     if st.status_code != 200:
-                        print(f"    ⚠️ статус {st.status_code}: {st.text[:200]}")
+                        logger.warning("    статус %s: %s", st.status_code, st.text[:200])
                         sleep_log(6)
                         continue
                     status = st.json().get("data", {}).get("status", "")
-                    print(f"    статус: {status}")
+                    logger.info("    статус: %s", status)
                     if status == "done":
                         break
                     if status in ("error", "failed"):
-                        print("    ❗ статус ошибки. Пропускаю окно.")
+                        logger.error("    статус ошибки. Пропускаю окно.")
                         break
                 except Exception as e:
-                    print(f"    ⚠️ Ошибка get_status: {e}")
+                    logger.warning("    Ошибка get_status: %s", e)
                 sleep_log(5)
                 if tries > 60:
-                    print("    ⚠️ слишком долго. Пропускаю окно.")
+                    logger.warning("    слишком долго. Пропускаю окно.")
                     break
 
             if status != "done":
@@ -226,16 +231,16 @@ def main(config=None):
             try:
                 dw = download_report(token, task_id)
                 if dw.status_code == 429:
-                    print("   429 на download. Жду 65 сек и повторю…")
+                    logger.warning("   429 на download. Жду 65 сек и повторю…")
                     sleep_log(65)
                     dw = download_report(token, task_id)
                 if dw.status_code != 200:
-                    print(f"   ⚠️ download: {dw.status_code} {dw.text[:200]}")
+                    logger.warning("   download: %s %s", dw.status_code, dw.text[:200])
                     continue
 
                 payload = dw.json()
                 if not isinstance(payload, list):
-                    print("   ⚠️ Неожиданный формат download (ожидали массив).")
+                    logger.warning("   Неожиданный формат download (ожидали массив).")
                     continue
 
                 rows = []
@@ -278,15 +283,15 @@ def main(config=None):
                     cur.executemany(f"INSERT OR REPLACE INTO {TABLE} VALUES ({ph})", rows)
                     conn.commit()
                     total_inserted += len(rows)
-                    print(f"   ✅ +{len(rows)} строк (итого: {total_inserted})")
+                    logger.info("   ✅ +%s строк (итого: %s)", len(rows), total_inserted)
                 else:
-                    print("   ⚠️ Пустой отчёт по этому окну.")
+                    logger.warning("   Пустой отчёт по этому окну.")
 
             except Exception as e:
-                print(f"   ⚠️ Ошибка download/insert: {e}")
+                logger.warning("   Ошибка download/insert: %s", e)
                 continue
 
-    print(f"\n✅ Готово. Всего вставлено/обновлено строк: {total_inserted} в {TABLE}")
+    logger.info("✅ Готово. Всего вставлено/обновлено строк: %s в %s", total_inserted, TABLE)
     conn.close()
 
 

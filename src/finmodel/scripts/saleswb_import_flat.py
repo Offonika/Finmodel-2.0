@@ -7,7 +7,10 @@ import pandas as pd
 import requests
 from requests.adapters import HTTPAdapter, Retry
 
+from finmodel.logger import get_logger
 from finmodel.utils.settings import find_setting, load_config, parse_date
+
+logger = get_logger(__name__)
 
 
 def main(config=None):
@@ -23,13 +26,13 @@ def main(config=None):
     # --- Получаем период загрузки ---
     period_start = parse_date(find_setting("ПериодНачало")).strftime("%Y-%m-%dT%H:%M:%S")
     period_end = parse_date(find_setting("ПериодКонец")).strftime("%Y-%m-%dT%H:%M:%S")
-    print(f"Период загрузки продаж: {period_start} .. {period_end}")
+    logger.info("Период загрузки продаж: %s .. %s", period_start, period_end)
 
     # --- Чтение организаций ---
     df_orgs = pd.DataFrame(config.get("organizations", []))
     df_orgs = df_orgs[["id", "Организация", "Token_WB"]].dropna()
     if df_orgs.empty:
-        print("❗ Конфигурация не содержит организаций с токенами.")
+        logger.error("Конфигурация не содержит организаций с токенами.")
         raise SystemExit(1)
 
     # --- Все возможные поля продажи (WB-API) ---
@@ -106,7 +109,7 @@ def main(config=None):
         org_id = row["id"]
         org_name = row["Организация"]
         token = row["Token_WB"]
-        print(f"\n→ Организация: {org_name} (ID={org_id})")
+        logger.info("→ Организация: %s (ID=%s)", org_name, org_id)
 
         headers = headers_template.copy()
         headers["Authorization"] = token
@@ -117,21 +120,21 @@ def main(config=None):
 
         while True:
             params = {"dateFrom": date_from}
-            print(f"  📤 Запрос page {page}, dateFrom={date_from} ...", end=" ", flush=True)
+            logger.info("  📤 Запрос page %s, dateFrom=%s ...", page, date_from)
             try:
                 resp = http.get(url, params=params, headers=headers, timeout=REQUEST_TIMEOUT)
                 if resp.status_code != 200:
-                    print(f"\n  ⚠️ Запрос вернул статус {resp.status_code}: {resp.text}")
+                    logger.warning("  Запрос вернул статус %s: %s", resp.status_code, resp.text)
                     time.sleep(5)
                     break
                 data = resp.json()
             except Exception as e:
-                print(f"\n  ⚠️ Ошибка запроса: {e}")
+                logger.warning("  Ошибка запроса: %s", e)
                 time.sleep(5)
                 break
 
             if not data:
-                print("✅ Все продажи загружены для этой организации.")
+                logger.info("✅ Все продажи загружены для этой организации.")
                 break
 
             # Распаковка
@@ -150,14 +153,14 @@ def main(config=None):
                 )
                 conn.commit()
             except Exception as e:
-                print(f"\n  ⚠️ Ошибка вставки: {e}")
+                logger.warning("  Ошибка вставки: %s", e)
                 break
 
             total_loaded += len(rows)
-            print(f"  +{len(rows)} продаж (итого: {total_loaded})")
+            logger.info("  +%s продаж (итого: %s)", len(rows), total_loaded)
 
             if len(rows) < PAGE_LIMIT:
-                print("  ✅ Продажи по периоду загружены полностью.")
+                logger.info("  ✅ Продажи по периоду загружены полностью.")
                 break
 
             # pagination: следующий dateFrom = lastChangeDate последней строки
@@ -166,7 +169,7 @@ def main(config=None):
             time.sleep(3)  # WB лимит: 1 запрос в минуту, но можно чуть чаще
 
     conn.close()
-    print("\n✅ Все продажи загружены и распарсены в таблицу SalesWBFlat (без дублей).")
+    logger.info("✅ Все продажи загружены и распарсены в таблицу SalesWBFlat (без дублей).")
 
 
 if __name__ == "__main__":

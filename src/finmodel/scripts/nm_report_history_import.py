@@ -6,7 +6,10 @@ from pathlib import Path
 import pandas as pd
 import requests
 
+from finmodel.logger import get_logger
 from finmodel.utils.settings import load_config
+
+logger = get_logger(__name__)
 
 
 def main(config=None):
@@ -15,19 +18,19 @@ def main(config=None):
     base_dir = Path(__file__).resolve().parents[3]
     db_path = Path(config.get("db_path", base_dir / "finmodel.db"))
 
-    print(f"DB:  {db_path}")
+    logger.info("DB: %s", db_path)
 
     # --- Период: всегда последние 7 дней (включая сегодня) ---
     today = datetime.now().date()
     date_from = (today - timedelta(days=7)).strftime("%Y-%m-%d")
     date_to = today.strftime("%Y-%m-%d")
-    print(f"Период запроса: {date_from} .. {date_to}")
+    logger.info("Период запроса: %s .. %s", date_from, date_to)
 
     # --- Чтение организаций и токенов ---
     df_orgs = pd.DataFrame(config.get("organizations", []))
     df_orgs = df_orgs[["id", "Организация", "Token_WB"]].dropna()
     if df_orgs.empty:
-        print("❗ Конфигурация не содержит организаций с токенами.")
+        logger.error("Конфигурация не содержит организаций с токенами.")
         raise SystemExit(1)
 
     # --- Подключение к БД ---
@@ -92,7 +95,7 @@ def main(config=None):
                 return sorted(set(nmids))
         except Exception:
             pass
-        print(f"  ⚠️ Не найдены nmID для организации {org_name} (ID={org_id}).")
+        logger.warning("  Не найдены nmID для организации %s (ID=%s).", org_name, org_id)
         return []
 
     def do_request(token, nm_ids):
@@ -116,34 +119,34 @@ def main(config=None):
         org_name = str(org["Организация"])
         token = str(org["Token_WB"]).strip()
 
-        print(f"\n→ Организация: {org_name} (ID={org_id})")
+        logger.info("→ Организация: %s (ID=%s)", org_name, org_id)
         nmids = get_nmids_for_org(cur, org_id, org_name)
         if not nmids:
             continue
 
-        print(f"  Всего nmID: {len(nmids)} (батчи по 20)")
+        logger.info("  Всего nmID: %s (батчи по 20)", len(nmids))
 
         batch_num = 0
         for batch in chunked(nmids, 20):
             batch_num += 1
-            print(f"  ▶ Батч {batch_num}: {len(batch)} nmID", flush=True)
+            logger.info("  ▶ Батч %s: %s nmID", batch_num, len(batch))
 
             try:
                 resp = do_request(token, batch)
                 # Если упёрлись в лимит — немного подождём и повторим 1 раз
                 if resp.status_code == 429:
-                    print("    429 Too Many Requests. Жду 25 сек и повторяю…")
+                    logger.warning("    429 Too Many Requests. Жду 25 сек и повторяю…")
                     time.sleep(25)
                     resp = do_request(token, batch)
 
                 if resp.status_code == 401:
-                    print(
-                        "    ❗ 401 Unauthorized — проверьте токен/права (нужна аналитика). Пропускаю организацию."
+                    logger.error(
+                        "    401 Unauthorized — проверьте токен/права (нужна аналитика). Пропускаю организацию."
                     )
                     break
 
                 if resp.status_code != 200:
-                    print(f"    ⚠️ HTTP {resp.status_code}: {resp.text[:300]}")
+                    logger.warning("    HTTP %s: %s", resp.status_code, resp.text[:300])
                     # даже при ошибке соблюдём паузу между вызовами
                     time.sleep(SLEEP_BETWEEN_CALLS)
                     continue
@@ -151,7 +154,7 @@ def main(config=None):
                 payload = resp.json() or {}
                 data = payload.get("data", [])
                 if not isinstance(data, list):
-                    print("    ⚠️ Неожиданный формат ответа (ожидали массив 'data').")
+                    logger.warning("    Неожиданный формат ответа (ожидали массив 'data').")
                     time.sleep(SLEEP_BETWEEN_CALLS)
                     continue
 
@@ -188,18 +191,18 @@ def main(config=None):
                     cur.executemany(f"INSERT OR REPLACE INTO {TABLE} VALUES ({ph})", rows)
                     conn.commit()
                     total_inserted += len(rows)
-                    print(f"    ✅ +{len(rows)} строк (итого: {total_inserted})")
+                    logger.info("    ✅ +%s строк (итого: %s)", len(rows), total_inserted)
                 else:
-                    print("    ⚠️ Пустые данные по этому батчу.")
+                    logger.warning("    Пустые данные по этому батчу.")
 
             except Exception as e:
-                print(f"    ⚠️ Ошибка запроса/вставки: {e}")
+                logger.warning("    Ошибка запроса/вставки: %s", e)
 
             # строго выдерживаем лимит 3 запроса/мин → пауза 20 секунд
             time.sleep(SLEEP_BETWEEN_CALLS)
 
     conn.close()
-    print(f"\n✅ Готово. Всего добавлено/обновлено строк: {total_inserted} в {TABLE}")
+    logger.info("✅ Готово. Всего добавлено/обновлено строк: %s в %s", total_inserted, TABLE)
 
 
 if __name__ == "__main__":

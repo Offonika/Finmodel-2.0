@@ -9,20 +9,23 @@ def main(config=None):
     import pandas as pd
     import requests
 
+    from finmodel.logger import get_logger
     from finmodel.utils.settings import load_config
+
+    logger = get_logger(__name__)
 
     config = config or load_config()
 
     # ---------- Paths ----------
     base_dir = Path(__file__).resolve().parents[3]
     db_path = Path(config.get("db_path", base_dir / "finmodel.db"))
-    print(f"DB:  {db_path}")
+    logger.info("DB: %s", db_path)
 
     # ---------- Period (last 7 days via interval) ----------
     today = datetime.now().date()
     begin = (today - timedelta(days=6)).strftime("%Y-%m-%d")
     end = today.strftime("%Y-%m-%d")
-    print(f"Интервал: {begin} .. {end}")
+    logger.info("Интервал: %s .. %s", begin, end)
 
     # ---------- WB endpoints & constants ----------
     URL_COUNT = "https://advert-api.wildberries.ru/adv/v1/promotion/count"
@@ -78,7 +81,7 @@ def main(config=None):
     df_orgs = pd.DataFrame(config.get("organizations", []))
     df_orgs = df_orgs[["id", "Организация", "Token_WB"]].dropna()
     if df_orgs.empty:
-        print("❗ Конфигурация не содержит организаций с токенами.")
+        logger.error("Конфигурация не содержит организаций с токенами.")
         raise SystemExit(1)
 
     # ---------- DB & target table ----------
@@ -178,11 +181,11 @@ def main(config=None):
         try:
             r = requests.get(URL_COUNT, headers=headers, timeout=60)
             if r.status_code != 200:
-                print(f"  [count] HTTP {r.status_code}: {r.text[:300]}")
+                logger.warning("  [count] HTTP %s: %s", r.status_code, r.text[:300])
                 return []
             data = r.json() or {}
         except Exception as e:
-            print(f"  [count] error: {e}")
+            logger.warning("  [count] error: %s", e)
             return []
 
         ids = []
@@ -201,7 +204,7 @@ def main(config=None):
             throttle_fullstats()  # <= гарантируем 1 POST/≈минуту на продавца
             body = prepare_request_body_interval(ids_sub, begin, end)
             if preview:
-                print(f"    POST preview: {body[:1]} (+{max(0,len(body)-1)} ids)")
+                logger.info("    POST preview: %s (+%s ids)", body[:1], max(0, len(body) - 1))
             return requests.post(URL_FULLSTATS, headers=headers, json=body, timeout=120)
 
         def _handle(ids_sub):
@@ -213,7 +216,7 @@ def main(config=None):
             if resp.status_code == 429:
                 # глобальный лимитер WB — подождём подольше и повторим один раз
                 sleep_s = REQ_INTERVAL_SEC + 10
-                print(f"    429 Too Many Requests. Жду {sleep_s} сек…")
+                logger.warning("    429 Too Many Requests. Жду %s сек…", sleep_s)
                 time.sleep(sleep_s)
                 resp = _post(ids_sub)
 
@@ -222,13 +225,13 @@ def main(config=None):
                 if isinstance(data, list):
                     payload_all.extend(data)
                 else:
-                    print("    ⚠️ Неожиданный формат ответа; пропущено.")
+                    logger.warning("    Неожиданный формат ответа; пропущено.")
                 return
 
             if resp.status_code == 400:
                 # дробим, но это тоже пойдёт через глобальный троттлер (по одному POST в ~минуту)
                 if len(ids_sub) == 1:
-                    print(f"    ⚠️ 400 на кампанию {ids_sub[0]} — пропускаю.")
+                    logger.warning("    400 на кампанию %s — пропускаю.", ids_sub[0])
                     return
                 mid = max(1, len(ids_sub) // 2)
                 _handle(ids_sub[:mid])
@@ -236,10 +239,10 @@ def main(config=None):
                 return
 
             if resp.status_code == 401:
-                print("    ❗ 401 Unauthorized — токен/права. Пропускаю организацию.")
+                logger.error("    401 Unauthorized — токен/права. Пропускаю организацию.")
                 raise PermissionError
 
-            print(f"    ⚠️ HTTP {resp.status_code}: {resp.text[:500]} (пропущено)")
+            logger.warning("    HTTP %s: %s (пропущено)", resp.status_code, resp.text[:500])
 
         _handle(ids_batch)
         return payload_all
@@ -253,27 +256,31 @@ def main(config=None):
         org_name = str(org["Организация"])
         token = str(org["Token_WB"]).strip()
 
-        print(f"\n→ Организация: {org_name} (ID={org_id})")
+        logger.info("→ Организация: %s (ID=%s)", org_name, org_id)
 
         ids_api = get_campaign_ids_from_api(token)
-        print(f"  Всего кампаний с API: {len(ids_api)}")
+        logger.info("  Всего кампаний с API: %s", len(ids_api))
 
         ids_eligible = get_local_eligible_ids(conn, org_id, ids_api, begin, end)
-        print(
-            f"  После локального фильтра (status∈{ALLOWED_STATUS}, type∈{ALLOWED_TYPES}, даты/изменения): {len(ids_eligible)}"
+        logger.info(
+            "  После локального фильтра (status∈%s, type∈%s, даты/изменения): %s",
+            ALLOWED_STATUS,
+            ALLOWED_TYPES,
+            len(ids_eligible),
         )
 
         if not ids_eligible:
-            print("  ⚠️ Нет подходящих кампаний для запроса fullstats.")
+            logger.warning("  Нет подходящих кампаний для запроса fullstats.")
             continue
 
         headers = HEADERS_BASE.copy()
         headers["Authorization"] = token
 
         for batch_num, ids_batch in enumerate(chunked(ids_eligible, 100), start=1):
-            print(
-                f"  ▶ fullstats: батч {batch_num} (ids={len(ids_batch)}), глобальный лимит ~1 POST/мин…",
-                flush=True,
+            logger.info(
+                "  ▶ fullstats: батч %s (ids=%s), глобальный лимит ~1 POST/мин…",
+                batch_num,
+                len(ids_batch),
             )
             try:
                 payload = request_fullstats_batch(
@@ -391,16 +398,16 @@ def main(config=None):
                     cur.executemany(f"INSERT OR REPLACE INTO {TABLE} ({cols}) VALUES ({ph})", rows)
                     conn.commit()
                     total_rows += len(rows)
-                    print(f"    ✅ вставлено {len(rows)} строк (итого: {total_rows})")
+                    logger.info("    ✅ вставлено %s строк (итого: %s)", len(rows), total_rows)
                 else:
-                    print("    ⚠️ пустой набор данных для батча.")
+                    logger.warning("    пустой набор данных для батча.")
 
             except PermissionError:
                 break
             except Exception as e:
-                print(f"    ⚠️ Ошибка запроса/вставки: {e}")
+                logger.warning("    Ошибка запроса/вставки: %s", e)
 
-    print(f"\n✅ Готово. Добавлено/обновлено строк: {total_rows} в {TABLE}")
+    logger.info("✅ Готово. Добавлено/обновлено строк: %s в %s", total_rows, TABLE)
     conn.close()
 
 

@@ -4,7 +4,10 @@ from pathlib import Path
 import pandas as pd
 import requests
 
+from finmodel.logger import get_logger
 from finmodel.utils.settings import load_config
+
+logger = get_logger(__name__)
 
 
 def main(config=None):
@@ -17,7 +20,7 @@ def main(config=None):
     df_orgs = pd.DataFrame(config.get("organizations", []))
     tokens = df_orgs.get("Token_WB", pd.Series()).dropna().astype(str).tolist()
     if not tokens:
-        print("❗ Конфигурация не содержит токенов.")
+        logger.error("Конфигурация не содержит токенов.")
         return
 
     # --- Поля по документации WB ---
@@ -55,17 +58,17 @@ def main(config=None):
 
     for idx, token in enumerate(tokens, 1):
         headers = {"Authorization": token}
-        print(f"\nПробую токен №{idx} ...", end=" ")
+        logger.info("Пробую токен №%s ...", idx)
         try:
             resp = requests.get(url, headers=headers, params=params, timeout=60)
             if resp.status_code != 200:
-                print(f"ответ WB: {resp.status_code}")
+                logger.warning("ответ WB: %s", resp.status_code)
                 continue
             data = resp.json().get("report", [])
             if not data:
-                print("данных нет.")
+                logger.info("данных нет.")
                 continue
-            print("Успех!")
+            logger.info("Успех!")
             # --- Вставляем плоско ---
             rows = []
             for rec in data:
@@ -80,20 +83,20 @@ def main(config=None):
                 rows,
             )
             conn.commit()
-            print(f"Вставлено {len(rows)} строк в таблицу WBTariffsCommission")
+            logger.info("Вставлено %s строк в таблицу WBTariffsCommission", len(rows))
             found_data = True
             break
         except Exception as e:
-            print(f"Ошибка запроса: {e}")
+            logger.warning("Ошибка запроса: %s", e)
             continue
 
     if not found_data:
-        print(
-            "\n❗ Не удалось получить данные ни с одним токеном. Проверьте права или интернет/домен WB."
+        logger.error(
+            "Не удалось получить данные ни с одним токеном. Проверьте права или интернет/домен WB."
         )
 
     conn.close()
-    print("✅ Комиссии по категориям WB: загрузка завершена.")
+    logger.info("✅ Комиссии по категориям WB: загрузка завершена.")
 
 
 if __name__ == "__main__":

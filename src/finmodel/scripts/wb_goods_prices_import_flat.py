@@ -15,6 +15,8 @@ def main():
     import requests
     from requests.adapters import HTTPAdapter, Retry
 
+    from finmodel.logger import get_logger
+
     WB_ENDPOINT = "https://card.wb.ru/cards/v1/detail"
     CHUNK_SIZE = 100
     TIMEOUT = 15
@@ -40,6 +42,8 @@ def main():
         s.mount("https://", HTTPAdapter(max_retries=retries))
         s.mount("http://", HTTPAdapter(max_retries=retries))
         return s
+
+    logger = get_logger(__name__)
 
     def fetch_batch(http: requests.Session, ids: List[str]) -> List[Dict[str, Any]]:
         ids_clean = [str(x).strip() for x in ids if str(x).strip()]
@@ -177,7 +181,7 @@ def main():
         import pyodbc
 
         if not rows:
-            print("Нет строк для записи в БД — пропускаю.")
+            logger.warning("Нет строк для записи в БД — пропускаю.")
             return 0
         cn = pyodbc.connect(dsn, autocommit=True)
         cur = cn.cursor()
@@ -210,7 +214,7 @@ def main():
             inserted += len(chunk)
         cur.close()
         cn.close()
-        print(f"Записано строк: {inserted}")
+        logger.info("Записано строк: %s", inserted)
         return inserted
 
 

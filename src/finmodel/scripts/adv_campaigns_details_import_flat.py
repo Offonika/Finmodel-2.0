@@ -6,7 +6,10 @@ from pathlib import Path
 import pandas as pd
 import requests
 
+from finmodel.logger import get_logger
 from finmodel.utils.settings import load_config
+
+logger = get_logger(__name__)
 
 
 def main(config=None):
@@ -15,13 +18,13 @@ def main(config=None):
     base_dir = Path(__file__).resolve().parents[3]
     db_path = Path(config.get("db_path", base_dir / "finmodel.db"))
 
-    print(f"DB: {db_path}")
+    logger.info("DB: %s", db_path)
 
     # --- Читаем организации/токены ---
     df_orgs = pd.DataFrame(config.get("organizations", []))
     df_orgs = df_orgs[["id", "Организация", "Token_WB"]].dropna()
     if df_orgs.empty:
-        print("❗ Конфигурация не содержит организаций с токенами.")
+        logger.error("Конфигурация не содержит организаций с токенами.")
         raise SystemExit(1)
 
     # --- Итоговая плоская таблица (пересоздаём на каждый запуск) ---
@@ -116,28 +119,28 @@ def main(config=None):
         org_name = str(r["Организация"])
         token = str(r["Token_WB"]).strip()
 
-        print(f"\n→ Организация: {org_name} (ID={org_id})")
+        logger.info("→ Организация: %s (ID=%s)", org_name, org_id)
         headers = HEADERS_BASE.copy()
         headers["Authorization"] = token
 
         # 1) Получаем ID кампаний через /promotion/count
         try:
             resp = requests.get(URL_COUNT, headers=headers, timeout=60)
-            print(f"  [count] HTTP {resp.status_code}")
+            logger.info("  [count] HTTP %s", resp.status_code)
             if resp.status_code != 200:
-                print(f"  ⚠️ Ошибка count: {resp.text[:300]}")
+                logger.warning("  Ошибка count: %s", resp.text[:300])
                 time.sleep(0.3)
                 continue
             data = resp.json() or {}
         except Exception as e:
-            print(f"  ⚠️ Ошибка запроса count: {e}")
+            logger.warning("  Ошибка запроса count: %s", e)
             time.sleep(0.3)
             continue
 
         # Ожидаем формат: {"adverts":[{"type":..,"status":..,"count":..,"advert_list":[{"advertId":..,"changeTime":..}, ...]}], "all": N}
         adverts = data.get("adverts", [])
         if not isinstance(adverts, list) or not adverts:
-            print("  ⚠️ Нет кампаний в ответе count.")
+            logger.warning("  Нет кампаний в ответе count.")
             time.sleep(0.3)
             continue
 
@@ -153,11 +156,13 @@ def main(config=None):
 
         advert_ids = sorted(set(advert_ids))
         if not advert_ids:
-            print("  ⚠️ После фильтра status∈{9,11}, type∈{8,9} кампаний нет.")
+            logger.warning("  После фильтра status∈{9,11}, type∈{8,9} кампаний нет.")
             time.sleep(0.3)
             continue
 
-        print(f"  ▶ Отобрано кампаний по фильтру: {len(advert_ids)} (будем запрашивать подробнее)")
+        logger.info(
+            "  ▶ Отобрано кампаний по фильтру: %s (будем запрашивать подробнее)", len(advert_ids)
+        )
 
         # 2) Получаем детали кампаниями партиями по 50 ID
         rows_to_insert = []
@@ -176,14 +181,14 @@ def main(config=None):
                 # соблюдаем лимиты 5 req/s
                 time.sleep(0.3)
 
-                print(f"  [adverts] ids={len(batch)} → HTTP {resp.status_code}")
+                logger.info("  [adverts] ids=%s → HTTP %s", len(batch), resp.status_code)
                 if resp.status_code != 200:
-                    print(f"  ⚠️ Ошибка adverts: {resp.text[:300]}")
+                    logger.warning("  Ошибка adverts: %s", resp.text[:300])
                     continue
 
                 details = resp.json() or []
                 if not isinstance(details, list):
-                    print("  ⚠️ Неожиданный формат adverts (ожидали массив). Пропуск батча.")
+                    logger.warning("  Неожиданный формат adverts (ожидали массив). Пропуск батча.")
                     continue
 
                 # Разворачиваем params/intervals/nms
@@ -276,10 +281,10 @@ def main(config=None):
                                 )
 
             except Exception as e:
-                print(f"  ⚠️ Ошибка запроса adverts: {e}")
+                logger.warning("  Ошибка запроса adverts: %s", e)
 
         if not rows_to_insert:
-            print("  ⚠️ Деталей кампаний не получено (после adverts).")
+            logger.warning("  Деталей кампаний не получено (после adverts).")
             continue
 
         try:
@@ -289,12 +294,12 @@ def main(config=None):
             )
             conn.commit()
             total_rows += len(rows_to_insert)
-            print(f"  ✅ Вставлено {len(rows_to_insert)} строк в {TABLE_NAME}")
+            logger.info("  ✅ Вставлено %s строк в %s", len(rows_to_insert), TABLE_NAME)
         except Exception as e:
-            print(f"  ⚠️ Ошибка вставки: {e}")
+            logger.warning("  Ошибка вставки: %s", e)
 
     conn.close()
-    print(f"\n✅ Готово. Всего добавлено/обновлено строк: {total_rows} в {TABLE_NAME}")
+    logger.info("✅ Готово. Всего добавлено/обновлено строк: %s в %s", total_rows, TABLE_NAME)
 
 
 if __name__ == "__main__":

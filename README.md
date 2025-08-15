@@ -30,5 +30,9 @@ Python utilities for importing and analyzing financial data from the Wildberries
 - Ensure new scripts include descriptive docstrings and a guarded `main` entry point.
 - Run `python -m compileall -q .` to verify syntax before committing.
 
+## Logs
+All scripts emit logs to the `log/finmodel.log` file. Create the `log/` directory if it
+does not exist to keep collected logs.
+
 ## License
 Specify the project license if applicable.

@@ -3,6 +3,10 @@ import json
 import sqlite3
 from pathlib import Path
 
+from finmodel.logger import get_logger
+
+logger = get_logger(__name__)
+
 
 def main():
     # --- Пути к базе ---
@@ -124,16 +128,16 @@ def main():
                     )
                     total += 1
                     if total % 1000 == 0:
-                        print(f"  {total} строк обработано...")
+                        logger.info("  %s строк обработано...", total)
                 except Exception as e:
-                    print(f"Ошибка парсинга/org_id={org_id}: {e}")
+                    logger.warning("Ошибка парсинга/org_id=%s: %s", org_id, e)
                     errors += 1
 
-            print(f"\n✅ Всего записей обработано и вставлено: {total}")
+            logger.info("✅ Всего записей обработано и вставлено: %s", total)
             if errors:
-                print(f"❗ Были ошибки парсинга: {errors} записей не обработаны")
+                logger.warning("Были ошибки парсинга: %s записей не обработаны", errors)
 
-    print("Готово! Таблица FinOtchetFlat содержит плоские данные для PowerBI/Excel.")
+    logger.info("Готово! Таблица FinOtchetFlat содержит плоские данные для PowerBI/Excel.")
 
 
 if __name__ == "__main__":
