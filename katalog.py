@@ -82,6 +82,9 @@ for _, row in df_orgs.iterrows():
 
         try:
             response = requests.post(url, json=payload, headers=headers, timeout=30)
+            if response.status_code != 200:
+                print(f"Ошибка запроса: статус {response.status_code}, ответ: {response.text}")
+                break
             data = response.json()
         except Exception as e:
             print(f"Ошибка запроса: {e}")
