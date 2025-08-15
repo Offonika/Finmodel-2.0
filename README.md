@@ -13,7 +13,8 @@ Python utilities for importing and analyzing financial data from the Wildberries
    source venv/bin/activate
    pip install -r requirements.txt  # if available
    ```
-2. Configure any required API credentials for Wildberries in environment variables.
+2. Copy `config.example.yml` to `config.yml` and fill in database path, date ranges
+   and tokens. Environment variables with the same keys override the file values.
 3. Run a script via the package module or installed console entry point, e.g.:
    ```bash
    python -m finmodel.scripts.saleswb_import_flat

@@ -1,0 +1,11 @@
+db_path: /path/to/finmodel.db
+settings:
+  ПериодНачало: '2023-01-01'
+  ПериодКонец: '2023-01-31'
+organizations:
+  - id: 1
+    Организация: 'Org1'
+    Token_WB: 'token1'
+  - id: 2
+    Организация: 'Org2'
+    Token_WB: 'token2'

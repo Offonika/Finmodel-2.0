@@ -1,28 +1,46 @@
 from __future__ import annotations
 
+import os
 from datetime import datetime
 from pathlib import Path
+from typing import Any, Dict
 
 import pandas as pd
+import yaml
 
-# Path to the Excel settings file
-base_dir = Path(__file__).resolve().parents[3]
-xls_path = base_dir / "Finmodel.xlsm"
-
-_df_settings = None
+_config: Dict[str, Any] | None = None
 
 
-def _load_settings() -> None:
-    global _df_settings
-    if _df_settings is None:
-        _df_settings = pd.read_excel(xls_path, sheet_name="Настройки", engine="openpyxl")
+def load_config(path: str | Path | None = None) -> Dict[str, Any]:
+    """Load configuration from a YAML file or environment variables.
+
+    The search order is:
+    1. ``path`` if provided;
+    2. ``FINMODEL_CONFIG`` environment variable;
+    3. ``config.yml`` in the project root.
+
+    Loaded values are cached for subsequent calls.
+    """
+    global _config
+    if _config is None:
+        base_dir = Path(__file__).resolve().parents[3]
+        cfg_path = Path(path or os.getenv("FINMODEL_CONFIG", base_dir / "config.yml"))
+        data: Dict[str, Any] = {}
+        if cfg_path.exists():
+            with cfg_path.open("r", encoding="utf-8") as fh:
+                data = yaml.safe_load(fh) or {}
+        _config = data
+    return _config
 
 
-def find_setting(name: str):
-    """Return the value of a setting by name from the Excel file."""
-    _load_settings()
-    val = _df_settings.loc[_df_settings["Параметр"].astype(str).str.strip() == name, "Значение"]
-    return val.values[0] if not val.empty else None
+def find_setting(name: str, default: Any | None = None) -> Any:
+    """Return configuration value by ``name``.
+
+    Environment variables take precedence over the ``settings`` section of
+    the config file. If the key is missing, ``default`` is returned.
+    """
+    cfg = load_config().get("settings", {})
+    return os.getenv(name) or cfg.get(name, default)
 
 
 def parse_date(dt) -> datetime:
