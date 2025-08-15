@@ -14,9 +14,11 @@ Python utilities for importing and analyzing financial data from the Wildberries
    pip install -r requirements.txt  # if available
    ```
 2. Configure any required API credentials for Wildberries in environment variables.
-3. Run a script, e.g.:
+3. Run a script via the package module or installed console entry point, e.g.:
    ```bash
-   python saleswb_import_flat.py
+   python -m finmodel.scripts.saleswb_import_flat
+   # or after installing the package:
+   saleswb_import_flat
    ```
 
 ## Development
