@@ -1,2 +1,22 @@
+
 config.yml
 .env
+
+# кэш и временные
+*.py[cod]
+__pycache__/
+*.pyo
+# IDE
+.idea/
+.vscode/
+# виртуальное окружение
+venv/
+# данные Excel
+*.xlsm
+
+# ...кроме шаблона
+!excel/Finmodel_Template.xlsm
+# логи
+*.log
+*.pbix
+*.db
