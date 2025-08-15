@@ -5,6 +5,8 @@ import pandas as pd
 import time
 from datetime import datetime, timedelta
 
+from utils.settings import find_setting, parse_date
+
 # ---------------- Paths ----------------
 base_dir = Path(__file__).resolve().parent.parent
 db_path  = base_dir / "finmodel.db"
@@ -12,14 +14,6 @@ xls_path = base_dir / "Finmodel.xlsm"
 
 print(f"DB:  {db_path}")
 print(f"XLS: {xls_path}")
-
-# ---------------- Helpers ----------------
-def parse_date_any(x) -> datetime:
-    """Robust parse to date (not datetime)."""
-    if x is None or str(x).strip() == "":
-        raise ValueError("empty date")
-    s = str(x).strip().replace("T", " ")
-    return pd.to_datetime(s).to_pydatetime()
 
 def daterange_8d(d1: datetime, d2: datetime):
     """Yield (from, to) windows of up to 8 days inclusive."""
@@ -39,12 +33,6 @@ def sleep_with_log(sec: float, msg: str = ""):
     time.sleep(sec)
 
 # ---------------- Load settings ----------------
-# Period from Excel (Настройки)
-df_set = pd.read_excel(xls_path, sheet_name="Настройки", engine="openpyxl")
-def find_setting(name):
-    ser = df_set.loc[df_set["Параметр"].astype(str).str.strip() == name, "Значение"]
-    return None if ser.empty else ser.values[0]
-
 period_start_raw = find_setting("ПериодНачало")
 period_end_raw   = find_setting("ПериодКонец")
 
@@ -52,8 +40,8 @@ if not period_start_raw or not period_end_raw:
     print("❗ В листе 'Настройки' не найдены ПериодНачало/ПериодКонец.")
     raise SystemExit(1)
 
-period_start = parse_date_any(period_start_raw).date()
-period_end   = parse_date_any(period_end_raw).date()
+period_start = parse_date(period_start_raw).date()
+period_end   = parse_date(period_end_raw).date()
 if period_end < period_start:
     print("❗ ПериодКонец раньше ПериодНачало.")
     raise SystemExit(1)
