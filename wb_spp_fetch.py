@@ -52,6 +52,7 @@ API_URL = (
 )
 REQUEST_TIMEOUT = 10
 SLEEP_BETWEEN_CALLS = 0.2
+BATCH_SIZE = 100
 
 # ──────────────────────────────────────────────────────────────────────────────
 # 3. SQL
@@ -117,6 +118,7 @@ def main() -> None:
 
     print(f"Всего nmID: {len(nm_ids)}")
 
+    batch: list[tuple[int, int, int, int, Optional[int]]] = []
     for i, nm in enumerate(nm_ids, 1):
         try:
             row = fetch_card(nm)
@@ -125,13 +127,21 @@ def main() -> None:
             time.sleep(SLEEP_BETWEEN_CALLS)
             continue
 
-        cur.execute(INSERT_SQL, row)
-        con.commit()
+        batch.append(row)
+        if len(batch) >= BATCH_SIZE:
+            cur.executemany(INSERT_SQL, batch)
+            con.commit()
+            batch.clear()
+
         print(
             f"[{i}/{len(nm_ids)}] nmID={row[0]} "
             f"priceU={row[1]} salePriceU={row[2]} sale%={row[3]} spp={row[4]}"
         )
         time.sleep(SLEEP_BETWEEN_CALLS)
+
+    if batch:
+        cur.executemany(INSERT_SQL, batch)
+        con.commit()
 
     con.close()
     print("Готово.")
