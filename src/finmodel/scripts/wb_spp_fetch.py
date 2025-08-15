@@ -18,9 +18,13 @@ def main():
 
     import requests
 
+    from finmodel.logger import get_logger
+
     # ──────────────────────────────────────────────────────────────────────────────
     # 1. Параметры и путь к базе
     # ──────────────────────────────────────────────────────────────────────────────
+    logger = get_logger(__name__)
+
     def parse_args() -> argparse.Namespace:
         parser = argparse.ArgumentParser(add_help=False)
         parser.add_argument(
@@ -99,7 +103,7 @@ def main():
     # 5. Основной поток
     # ──────────────────────────────────────────────────────────────────────────────
     def main() -> None:
-        print("Используем базу:", DB_PATH)
+        logger.info("Используем базу: %s", DB_PATH)
         with sqlite3.connect(DB_PATH) as con:
             with con.cursor() as cur:
                 cur.execute(CREATE_WB_SPP_SQL)
@@ -107,17 +111,17 @@ def main():
                 try:
                     nm_ids = get_nm_ids(cur)
                 except sqlite3.OperationalError:
-                    print("❌ Таблица katalog не найдена. Создайте её и заполните nmID.")
+                    logger.error("❌ Таблица katalog не найдена. Создайте её и заполните nmID.")
                     return
 
-                print(f"Всего nmID: {len(nm_ids)}")
+                logger.info("Всего nmID: %s", len(nm_ids))
 
                 batch: list[tuple[int, int, int, int, Optional[int]]] = []
                 for i, nm in enumerate(nm_ids, 1):
                     try:
                         row = fetch_card(nm)
                     except Exception as e:
-                        print(f"[{i}/{len(nm_ids)}] nmID={nm} ❌ {e}")
+                        logger.warning("[%s/%s] nmID=%s ❌ %s", i, len(nm_ids), nm, e)
                         time.sleep(SLEEP_BETWEEN_CALLS)
                         continue
 
@@ -126,16 +130,22 @@ def main():
                         cur.executemany(INSERT_SQL, batch)
                         batch.clear()
 
-                    print(
-                        f"[{i}/{len(nm_ids)}] nmID={row[0]} "
-                        f"priceU={row[1]} salePriceU={row[2]} sale%={row[3]} spp={row[4]}"
+                    logger.info(
+                        "[%s/%s] nmID=%s priceU=%s salePriceU=%s sale%%=%s spp=%s",
+                        i,
+                        len(nm_ids),
+                        row[0],
+                        row[1],
+                        row[2],
+                        row[3],
+                        row[4],
                     )
                     time.sleep(SLEEP_BETWEEN_CALLS)
 
                 if batch:
                     cur.executemany(INSERT_SQL, batch)
 
-        print("Готово.")
+        logger.info("Готово.")
 
     if __name__ == "__main__":
         main()

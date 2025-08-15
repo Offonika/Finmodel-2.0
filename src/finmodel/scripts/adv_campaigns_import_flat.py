@@ -6,7 +6,10 @@ from pathlib import Path
 import pandas as pd
 import requests
 
+from finmodel.logger import get_logger
 from finmodel.utils.settings import load_config
+
+logger = get_logger(__name__)
 
 
 def main(config=None):
@@ -15,13 +18,13 @@ def main(config=None):
     base_dir = Path(__file__).resolve().parents[3]
     db_path = Path(config.get("db_path", base_dir / "finmodel.db"))
 
-    print(f"DB: {db_path}")
+    logger.info("DB: %s", db_path)
 
     # --- Читаем организации/токены ---
     df_orgs = pd.DataFrame(config.get("organizations", []))
     df_orgs = df_orgs[["id", "Организация", "Token_WB"]].dropna()
     if df_orgs.empty:
-        print("❗ Конфигурация не содержит организаций с токенами.")
+        logger.error("Конфигурация не содержит организаций с токенами.")
         return
 
     # --- Итоговые поля таблицы ---
@@ -73,28 +76,28 @@ def main(config=None):
                 org_name = str(r["Организация"])
                 token = str(r["Token_WB"]).strip()
 
-                print(f"\n→ Организация: {org_name} (ID={org_id})")
+                logger.info("→ Организация: %s (ID=%s)", org_name, org_id)
                 headers = HEADERS_BASE.copy()
                 headers["Authorization"] = token
 
                 try:
                     resp = requests.get(URL, headers=headers, timeout=60)
-                    print(f"  HTTP {resp.status_code}")
+                    logger.info("  HTTP %s", resp.status_code)
                     preview = (resp.text or "")[:500].replace("\n", " ")
-                    print("  Ответ (начало):", preview if preview else "[пусто]")
+                    logger.info("  Ответ (начало): %s", preview if preview else "[пусто]")
 
                     if resp.status_code != 200:
                         continue
 
                     data = resp.json() or {}
                 except Exception as e:
-                    print(f"  ⚠️ Ошибка запроса: {e}")
+                    logger.warning("  Ошибка запроса: %s", e)
                     time.sleep(0.3)
                     continue
 
                 adverts = data.get("adverts", [])
                 if not isinstance(adverts, list) or not adverts:
-                    print("  ⚠️ Пустой список adverts.")
+                    logger.warning("  Пустой список adverts.")
                     time.sleep(0.3)
                     continue
 
@@ -125,7 +128,7 @@ def main(config=None):
                         )
 
                 if not rows:
-                    print("  ⚠️ Кампаний не найдено по этому токену.")
+                    logger.warning("  Кампаний не найдено по этому токену.")
                     time.sleep(0.3)
                     continue
 
@@ -135,13 +138,13 @@ def main(config=None):
                         f"INSERT OR REPLACE INTO AdvCampaignsFlat VALUES ({placeholders})", rows
                     )
                     total_rows += len(rows)
-                    print(f"  ✅ Загружено {len(rows)} кампаний (плоско).")
+                    logger.info("  ✅ Загружено %s кампаний (плоско).", len(rows))
                 except Exception as e:
-                    print(f"  ⚠️ Ошибка вставки: {e}")
+                    logger.warning("  Ошибка вставки: %s", e)
 
                 time.sleep(0.3)  # лимит 5 req/sec
 
-    print(f"\n✅ Готово. Всего записей добавлено/обновлено: {total_rows}")
+    logger.info("✅ Готово. Всего записей добавлено/обновлено: %s", total_rows)
 
 
 if __name__ == "__main__":

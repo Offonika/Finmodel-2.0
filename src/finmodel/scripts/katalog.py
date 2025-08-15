@@ -5,7 +5,10 @@ from pathlib import Path
 import pandas as pd
 import requests
 
+from finmodel.logger import get_logger
 from finmodel.utils.settings import load_config
+
+logger = get_logger(__name__)
 
 
 def main(config=None):
@@ -18,7 +21,7 @@ def main(config=None):
     df_orgs = pd.DataFrame(config.get("organizations", []))
     df_orgs = df_orgs[["id", "Организация", "Token_WB"]].dropna()
     if df_orgs.empty:
-        print("❗ Конфигурация не содержит организаций с токенами.")
+        logger.error("Конфигурация не содержит организаций с токенами.")
         return
 
     # 📌 Подключение к базе
@@ -26,7 +29,7 @@ def main(config=None):
         conn = sqlite3.connect(db_path, timeout=10)
         cursor = conn.cursor()
     except sqlite3.OperationalError as e:
-        print(f"Ошибка подключения к базе: {e}")
+        logger.error("Ошибка подключения к базе: %s", e)
         exit(1)
 
     # 📌 Пересоздание таблицы с нужными столбцами
@@ -56,7 +59,7 @@ def main(config=None):
 
     # Показываем структуру таблицы
     cursor.execute("PRAGMA table_info(katalog);")
-    print("СТРУКТУРА katalog:", cursor.fetchall())
+    logger.info("СТРУКТУРА katalog: %s", cursor.fetchall())
 
     # 📌 Wildberries API
     url = "https://content-api.wildberries.ru/content/v2/get/cards/list"
@@ -68,7 +71,7 @@ def main(config=None):
         org_name = row["Организация"]
         token = row["Token_WB"]
 
-        print(f"→ Организация: {org_name} (ID={org_id})")
+        logger.info("→ Организация: %s (ID=%s)", org_name, org_id)
         headers = headers_template.copy()
         headers["Authorization"] = token
 
@@ -85,16 +88,18 @@ def main(config=None):
             try:
                 response = requests.post(url, json=payload, headers=headers, timeout=30)
                 if response.status_code != 200:
-                    print(f"Ошибка запроса: статус {response.status_code}, ответ: {response.text}")
+                    logger.warning(
+                        "Ошибка запроса: статус %s, ответ: %s", response.status_code, response.text
+                    )
                     break
                 data = response.json()
             except Exception as e:
-                print(f"Ошибка запроса: {e}")
+                logger.warning("Ошибка запроса: %s", e)
                 break
 
             cards = data.get("cards", [])
             if not cards:
-                print("  Нет карточек.")
+                logger.info("  Нет карточек.")
                 break
 
             rows = []
@@ -138,7 +143,7 @@ def main(config=None):
                     )
                     conn.commit()
                 except Exception as e:
-                    print(f"Ошибка записи в БД: {e}")
+                    logger.warning("Ошибка записи в БД: %s", e)
                     break
 
             # Обновление курсора
@@ -147,14 +152,14 @@ def main(config=None):
             nmID = cursor_data.get("nmID")
             total = cursor_data.get("total", 0)
 
-            print(f"  Загружено {len(cards)} карточек, осталось ~{total}")
+            logger.info("  Загружено %s карточек, осталось ~%s", len(cards), total)
             has_more = total >= 100
             if has_more:
                 time.sleep(0.6)
 
     # 📌 Завершение
     conn.close()
-    print("✅ Все карточки успешно загружены в таблицу katalog (без дублей).")
+    logger.info("✅ Все карточки успешно загружены в таблицу katalog (без дублей).")
 
 
 if __name__ == "__main__":

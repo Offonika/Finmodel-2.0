@@ -6,7 +6,10 @@ from pathlib import Path
 import pandas as pd
 import requests
 
+from finmodel.logger import get_logger
 from finmodel.utils.settings import find_setting, load_config, parse_date
+
+logger = get_logger(__name__)
 
 
 def main(config=None):
@@ -15,7 +18,7 @@ def main(config=None):
     base_dir = Path(__file__).resolve().parents[3]
     db_path = Path(config.get("db_path", base_dir / "finmodel.db"))
 
-    print(f"DB:  {db_path}")
+    logger.info("DB: %s", db_path)
 
     def daterange_8d(d1: datetime, d2: datetime):
         """Yield (from, to) windows of up to 8 days inclusive."""
@@ -31,7 +34,7 @@ def main(config=None):
 
     def sleep_with_log(sec: float, msg: str = ""):
         if msg:
-            print(msg)
+            logger.info(msg)
         time.sleep(sec)
 
     # ---------------- Load settings ----------------
@@ -39,22 +42,22 @@ def main(config=None):
     period_end_raw = find_setting("ПериодКонец")
 
     if not period_start_raw or not period_end_raw:
-        print("❗ Settings do not include ПериодНачало/ПериодКонец.")
+        logger.error("Settings do not include ПериодНачало/ПериодКонец.")
         raise SystemExit(1)
 
     period_start = parse_date(period_start_raw).date()
     period_end = parse_date(period_end_raw).date()
     if period_end < period_start:
-        print("❗ ПериодКонец раньше ПериодНачало.")
+        logger.error("ПериодКонец раньше ПериодНачало.")
         raise SystemExit(1)
 
-    print(f"Период: {period_start} .. {period_end}")
+    logger.info("Период: %s .. %s", period_start, period_end)
 
     # Orgs with tokens
     df_orgs = pd.DataFrame(config.get("organizations", []))
     df_orgs = df_orgs[["id", "Организация", "Token_WB"]].dropna()
     if df_orgs.empty:
-        print("❗ Конфигурация не содержит организаций с токенами.")
+        logger.error("Конфигурация не содержит организаций с токенами.")
         raise SystemExit(1)
 
     # ---------------- DB: table ----------------
@@ -168,7 +171,7 @@ def main(config=None):
         org_name = str(org["Организация"])
         token = str(org["Token_WB"]).strip()
 
-        print(f"\n→ Организация: {org_name} (ID={org_id})")
+        logger.info("→ Организация: %s (ID=%s)", org_name, org_id)
 
         # окна по 8 дней
         for win_from, win_to in daterange_8d(
@@ -177,33 +180,35 @@ def main(config=None):
         ):
             df_s = iso_date(win_from)
             dt_s = iso_date(win_to)
-            print(f"  окно: {df_s} .. {dt_s}")
+            logger.info("  окно: %s .. %s", df_s, dt_s)
 
             # 1) Create task (учитываем лимит: 1 запрос/мин, всплеск 5)
             try:
                 resp = create_task(token, df_s, dt_s)
                 if resp.status_code == 429:
-                    print("  ⚠️ 429 Too Many Requests на создание. Жду 65 сек и повторю…")
+                    logger.warning("  429 Too Many Requests на создание. Жду 65 сек и повторю…")
                     sleep_with_log(65)
                     resp = create_task(token, df_s, dt_s)
 
                 if resp.status_code == 401:
-                    print(f"  ❗ 401 Unauthorized. Пропускаю эту организацию.")
+                    logger.error("  401 Unauthorized. Пропускаю эту организацию.")
                     break
 
                 if resp.status_code != 200:
-                    print(f"  ⚠️ Ошибка создания задания: {resp.status_code} {resp.text[:200]}")
+                    logger.warning(
+                        "  Ошибка создания задания: %s %s", resp.status_code, resp.text[:200]
+                    )
                     # мягко продолжаем к следующему окну
                     sleep_with_log(2)
                     continue
 
                 task_id = resp.json().get("data", {}).get("taskId")
                 if not task_id:
-                    print("  ⚠️ taskId не получен.")
+                    logger.warning("  taskId не получен.")
                     continue
-                print(f"  taskId: {task_id}")
+                logger.info("  taskId: %s", task_id)
             except Exception as e:
-                print(f"  ⚠️ Ошибка create_task: {e}")
+                logger.warning("  Ошибка create_task: %s", e)
                 continue
 
             # 2) Poll status (лимит: 1 запрос/5 сек)
@@ -214,27 +219,27 @@ def main(config=None):
                 try:
                     st = get_status(token, task_id)
                     if st.status_code == 429:
-                        print("   429 на статусе. Жду 6 сек…")
+                        logger.warning("   429 на статусе. Жду 6 сек…")
                         sleep_with_log(6)
                         continue
                     if st.status_code != 200:
-                        print(f"   ⚠️ статус HTTP {st.status_code}: {st.text[:200]}")
+                        logger.warning("   статус HTTP %s: %s", st.status_code, st.text[:200])
                         sleep_with_log(6)
                         continue
                     status = st.json().get("data", {}).get("status", "")
-                    print(f"   статус: {status}")
+                    logger.info("   статус: %s", status)
                     if status == "done":
                         break
                     if status in ("error", "failed"):
-                        print("   ❗ статус ошибки. Пропускаю окно.")
+                        logger.error("   статус ошибки. Пропускаю окно.")
                         break
                 except Exception as e:
-                    print(f"   ⚠️ Ошибка get_status: {e}")
+                    logger.warning("   Ошибка get_status: %s", e)
                 # выдерживаем лимит
                 sleep_with_log(5)
 
                 if tries > 60:  # ~5 минут ожидания
-                    print("   ⚠️ слишком долго нет 'done'. Пропускаю окно.")
+                    logger.warning("   слишком долго нет 'done'. Пропускаю окно.")
                     break
 
             if status != "done":
@@ -244,17 +249,17 @@ def main(config=None):
             try:
                 dw = download_report(token, task_id)
                 if dw.status_code == 429:
-                    print("  429 на download. Жду 65 сек и повторю…")
+                    logger.warning("  429 на download. Жду 65 сек и повторю…")
                     sleep_with_log(65)
                     dw = download_report(token, task_id)
 
                 if dw.status_code != 200:
-                    print(f"  ⚠️ Ошибка download: {dw.status_code} {dw.text[:200]}")
+                    logger.warning("  Ошибка download: %s %s", dw.status_code, dw.text[:200])
                     continue
 
                 rows_json = dw.json()
                 if not isinstance(rows_json, list):
-                    print("  ⚠️ Неожиданный формат download (ожидали массив).")
+                    logger.warning("  Неожиданный формат download (ожидали массив).")
                     continue
 
                 # расплющить и вставить
@@ -298,12 +303,12 @@ def main(config=None):
                     cur.executemany(f"INSERT OR REPLACE INTO {TABLE} VALUES ({ph})", rows)
                     conn.commit()
                     total_inserted += len(rows)
-                    print(f"  ✅ +{len(rows)} строк (итого: {total_inserted})")
+                    logger.info("  ✅ +%s строк (итого: %s)", len(rows), total_inserted)
                 else:
-                    print("  ⚠️ Пустой отчёт на этом окне.")
+                    logger.warning("  Пустой отчёт на этом окне.")
 
             except Exception as e:
-                print(f"  ⚠️ Ошибка download/insert: {e}")
+                logger.warning("  Ошибка download/insert: %s", e)
                 continue
 
             # Между create задач старайся делать паузы,
@@ -311,7 +316,7 @@ def main(config=None):
             # Если догружаете много окон быстро — поставьте тут sleep(60).
 
     conn.close()
-    print(f"\n✅ Готово. Всего вставлено/обновлено строк: {total_inserted} в {TABLE}")
+    logger.info("✅ Готово. Всего вставлено/обновлено строк: %s в %s", total_inserted, TABLE)
 
 
 if __name__ == "__main__":

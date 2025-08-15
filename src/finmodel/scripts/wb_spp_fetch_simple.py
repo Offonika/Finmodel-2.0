@@ -14,6 +14,8 @@ def main():
 
     import requests
 
+    from finmodel.logger import get_logger
+
     API = "https://card.wb.ru/cards/v4/detail"
     DEST = -1257786  # универсальный регион РФ
     SPP = 30  # персональное СПП (если не нужен — поставьте 0)
@@ -32,6 +34,7 @@ def main():
             yield lst[i : i + n]
 
     def main():
+        logger = get_logger(__name__)
         ap = argparse.ArgumentParser()
         ap.add_argument(
             "nmids",
@@ -73,10 +76,10 @@ def main():
                 w = csv.DictWriter(f, fieldnames=keys)
                 w.writeheader()
                 w.writerows(rows)
-            print(f"Сохранено {len(rows)} строк → {args.out}")
+            logger.info("Сохранено %s строк → %s", len(rows), args.out)
         else:
             for r in rows:  # печать в консоль
-                print(r)
+                logger.info("%s", r)
 
     if __name__ == "__main__":
         main()
