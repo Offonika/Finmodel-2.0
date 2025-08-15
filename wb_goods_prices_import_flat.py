@@ -157,11 +157,11 @@ def write_csv(path: str, rows: List[Dict[str, Any]]) -> None:
             w.writerow({k: r.get(k) for k in fields})
 
 
-def write_to_db_odbc(rows: List[Dict[str, Any]], dsn: str, table: str = "dbo.spp") -> None:
+def write_to_db_odbc(rows: List[Dict[str, Any]], dsn: str, table: str = "dbo.spp") -> int:
     import pyodbc
     if not rows:
         print("Нет строк для записи в БД — пропускаю.")
-        return
+        return 0
     cn = pyodbc.connect(dsn, autocommit=True)
     cur = cn.cursor()
     sql = f"""
@@ -184,4 +184,12 @@ def write_to_db_odbc(rows: List[Dict[str, Any]], dsn: str, table: str = "dbo.spp
         ))
     cur.fast_executemany = True
     step = 1000
-    for i in range(0
+    inserted = 0
+    for i in range(0, len(batch), step):
+        chunk = batch[i:i + step]
+        cur.executemany(sql, chunk)
+        inserted += len(chunk)
+    cur.close()
+    cn.close()
+    print(f"Записано строк: {inserted}")
+    return inserted
