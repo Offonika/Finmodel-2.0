@@ -6,6 +6,9 @@ import time
 import pandas as pd
 from datetime import datetime
 
+# Максимальный размер страницы, заявленный в документации WB API
+PAGE_LIMIT = 100_000
+
 # --- Пути ---
 base_dir = Path(__file__).resolve().parent.parent
 db_path = base_dir / "finmodel.db"
@@ -111,7 +114,7 @@ for _, row in df_orgs.iterrows():
         total_loaded += len(rows)
         print(f"  +{len(rows)} продаж (итого: {total_loaded})")
 
-        if len(rows) == 0 or len(rows) < 80000:
+        if len(rows) < PAGE_LIMIT:
             print("  ✅ Продажи по периоду загружены полностью.")
             break
 
