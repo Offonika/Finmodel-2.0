@@ -1,0 +1,23 @@
+version: "3.8"
+
+services:
+  app:
+    build: .
+    volumes:
+      - ./config.yml:/app/config.yml:ro
+    environment:
+      - FINMODEL_SCRIPT=finmodel.scripts.saleswb_import_flat
+    depends_on:
+      - db
+
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: finmodel
+      POSTGRES_PASSWORD: finmodel
+      POSTGRES_DB: finmodel
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
