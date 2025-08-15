@@ -91,8 +91,11 @@ def fetch_card(nm_id: int) -> Tuple[int, int, int, int, Optional[int]]:
     r = requests.get(API_URL.format(nm=nm_id), timeout=REQUEST_TIMEOUT)
     r.raise_for_status()
     product = r.json()["products"][0]
+    sizes = product.get("sizes", [])
+    if not sizes:
+        raise ValueError(f"no sizes data for nmID {nm_id}")
 
-    pb = product["sizes"][0]["price"]
+    pb = sizes[0]["price"]
     priceU, salePriceU = pb["basic"], pb["product"]
     sale_pct = round((priceU - salePriceU) / priceU * 100)
     spp = pb.get("spp")  # почти всегда None
