@@ -25,6 +25,80 @@ Python utilities for importing and analyzing financial data from the Wildberries
    saleswb_import_flat
    ```
 
+## Docker
+A Docker image can run any import script in an isolated environment.
+
+Build the image:
+
+```bash
+docker build -t finmodel .
+```
+
+Run an import with your configuration file mounted into the container:
+
+```bash
+docker run --rm -v $(pwd)/config.yml:/app/config.yml finmodel
+```
+
+Override the script with the `FINMODEL_SCRIPT` variable:
+
+```bash
+docker run --rm -e FINMODEL_SCRIPT=finmodel.scripts.orderswb_import_flat \
+  -v $(pwd)/config.yml:/app/config.yml finmodel
+```
+
+To use PostgreSQL instead of SQLite, start the application with `docker-compose`:
+
+```yaml
+version: "3.8"
+services:
+  app:
+    build: .
+    volumes:
+      - ./config.yml:/app/config.yml:ro
+    environment:
+      - FINMODEL_SCRIPT=finmodel.scripts.saleswb_import_flat
+    depends_on:
+      - db
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: finmodel
+      POSTGRES_PASSWORD: finmodel
+      POSTGRES_DB: finmodel
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+volumes:
+  pgdata:
+```
+
+Launch the stack:
+
+```bash
+docker-compose up --build
+```
+
+## Scheduling
+For regular data imports, schedule the container execution.
+
+### Linux (cron)
+Run `crontab -e` and add a line:
+
+```
+0 3 * * * docker run --rm -v /path/to/config.yml:/app/config.yml finmodel
+```
+
+This example runs the import every day at 03:00.
+
+### Windows (Task Scheduler)
+Create a basic task that runs:
+
+```
+docker run --rm -v C:\path\to\config.yml:/app/config.yml finmodel
+```
+
+Set the trigger according to the required interval.
+
 ## Development
 - Follow instructions in `AGENTS.md` for coding standards and testing.
 - Ensure new scripts include descriptive docstrings and a guarded `main` entry point.
