@@ -1,0 +1,73 @@
+import os
+import sqlite3
+import requests
+import pandas as pd
+
+# --- Пути ---
+base_dir = os.path.abspath(os.path.join(os.getcwd(), ".."))
+db_path = os.path.join(base_dir, "finmodel.db")
+xls_path = os.path.join(base_dir, "Finmodel.xlsm")
+
+# --- Чтение всех токенов ---
+df_orgs = pd.read_excel(xls_path, sheet_name="НастройкиОрганизаций", engine="openpyxl")
+tokens = df_orgs["Token_WB"].dropna().astype(str).tolist()
+
+# --- Поля по документации WB ---
+FIELDS = [
+    "kgvpBooking", "kgvpMarketplace", "kgvpPickup", "kgvpSupplier", "kgvpSupplierExpress",
+    "paidStorageKgvp", "parentID", "parentName", "subjectID", "subjectName"
+]
+
+# --- Пересоздаём таблицу ---
+conn = sqlite3.connect(db_path)
+cursor = conn.cursor()
+fields_sql = ", ".join([f"{f} TEXT" for f in FIELDS])
+cursor.execute("DROP TABLE IF EXISTS WBTariffsCommission;")
+cursor.execute(f"""
+CREATE TABLE WBTariffsCommission (
+    {fields_sql}
+);
+""")
+conn.commit()
+
+# --- Пытаемся получить комиссии с каждым токеном ---
+url = "https://common-api.wildberries.ru/api/v1/tariffs/commission"
+params = {"locale": "ru"}
+found_data = False
+
+for idx, token in enumerate(tokens, 1):
+    headers = {"Authorization": token}
+    print(f"\nПробую токен №{idx} ...", end=' ')
+    try:
+        resp = requests.get(url, headers=headers, params=params, timeout=60)
+        if resp.status_code != 200:
+            print(f"ответ WB: {resp.status_code}")
+            continue
+        data = resp.json().get("report", [])
+        if not data:
+            print("данных нет.")
+            continue
+        print("Успех!")
+        # --- Вставляем плоско ---
+        rows = []
+        for rec in data:
+            flat = [str(rec.get(f, "")) for f in FIELDS]
+            rows.append(flat)
+        placeholders = ",".join(["?"] * len(FIELDS))
+        cursor.executemany(f"""
+            INSERT INTO WBTariffsCommission
+            VALUES ({placeholders})
+        """, rows)
+        conn.commit()
+        print(f"Вставлено {len(rows)} строк в таблицу WBTariffsCommission")
+        found_data = True
+        break
+    except Exception as e:
+        print(f"Ошибка запроса: {e}")
+        continue
+
+if not found_data:
+    print("\n❗ Не удалось получить данные ни с одним токеном. Проверьте права или интернет/домен WB.")
+
+conn.close()
+print("✅ Комиссии по категориям WB: загрузка завершена.")
