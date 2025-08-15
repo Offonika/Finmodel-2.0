@@ -4,7 +4,8 @@ import requests
 import json
 import time
 import pandas as pd
-from datetime import datetime
+
+from utils.settings import find_setting, parse_date
 
 # Максимальный размер страницы, заявленный в документации WB API
 PAGE_LIMIT = 100_000
@@ -15,20 +16,7 @@ db_path = base_dir / "finmodel.db"
 xls_path = base_dir / "Finmodel.xlsm"
 
 # --- Получаем "ПериодНачало" из Excel ---
-df_settings = pd.read_excel(xls_path, sheet_name="Настройки", engine="openpyxl")
-def find_setting(name):
-    val = df_settings.loc[df_settings["Параметр"].str.strip() == name, "Значение"]
-    return val.values[0] if not val.empty else None
-def parse_date(dt):
-    s = str(dt).replace("T", " ").replace("/", ".").strip()
-    try:
-        return datetime.strptime(s, "%d.%m.%Y").strftime("%Y-%m-%dT00:00:00")
-    except Exception:
-        try:
-            return datetime.strptime(s, "%Y-%m-%d").strftime("%Y-%m-%dT00:00:00")
-        except Exception:
-            return pd.to_datetime(s).strftime("%Y-%m-%dT%H:%M:%S")
-period_start = parse_date(find_setting("ПериодНачало"))
+period_start = parse_date(find_setting("ПериодНачало")).strftime("%Y-%m-%dT%H:%M:%S")
 print(f"Дата начала загрузки остатков: {period_start}")
 
 # --- Чтение организаций ---
