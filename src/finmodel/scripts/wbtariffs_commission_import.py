@@ -4,16 +4,21 @@ from pathlib import Path
 import pandas as pd
 import requests
 
+from finmodel.utils.settings import load_config
 
-def main():
+
+def main(config=None):
+    config = config or load_config()
     # --- Пути ---
     base_dir = Path(__file__).resolve().parents[3]
-    db_path = base_dir / "finmodel.db"
-    xls_path = base_dir / "Finmodel.xlsm"
+    db_path = Path(config.get("db_path", base_dir / "finmodel.db"))
 
     # --- Чтение всех токенов ---
-    df_orgs = pd.read_excel(xls_path, sheet_name="НастройкиОрганизаций", engine="openpyxl")
-    tokens = df_orgs["Token_WB"].dropna().astype(str).tolist()
+    df_orgs = pd.DataFrame(config.get("organizations", []))
+    tokens = df_orgs.get("Token_WB", pd.Series()).dropna().astype(str).tolist()
+    if not tokens:
+        print("❗ Конфигурация не содержит токенов.")
+        return
 
     # --- Поля по документации WB ---
     FIELDS = [

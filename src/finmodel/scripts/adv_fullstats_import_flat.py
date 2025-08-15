@@ -1,4 +1,4 @@
-def main():
+def main(config=None):
     # -*- coding: utf-8 -*-
     import random
     import sqlite3
@@ -9,13 +9,14 @@ def main():
     import pandas as pd
     import requests
 
+    from finmodel.utils.settings import load_config
+
+    config = config or load_config()
+
     # ---------- Paths ----------
     base_dir = Path(__file__).resolve().parents[3]
-    db_path = base_dir / "finmodel.db"
-    xls_path = base_dir / "Finmodel.xlsm"
-
+    db_path = Path(config.get("db_path", base_dir / "finmodel.db"))
     print(f"DB:  {db_path}")
-    print(f"XLS: {xls_path}")
 
     # ---------- Period (last 7 days via interval) ----------
     today = datetime.now().date()
@@ -74,10 +75,10 @@ def main():
         _last_post_ts = now
 
     # ---------- Orgs/tokens ----------
-    df_orgs = pd.read_excel(xls_path, sheet_name="НастройкиОрганизаций", engine="openpyxl")
+    df_orgs = pd.DataFrame(config.get("organizations", []))
     df_orgs = df_orgs[["id", "Организация", "Token_WB"]].dropna()
     if df_orgs.empty:
-        print("❗ Нет организаций/токенов в листе 'НастройкиОрганизаций'.")
+        print("❗ Конфигурация не содержит организаций с токенами.")
         raise SystemExit(1)
 
     # ---------- DB & target table ----------

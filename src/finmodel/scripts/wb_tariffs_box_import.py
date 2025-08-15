@@ -5,39 +5,28 @@ from pathlib import Path
 import pandas as pd
 import requests
 
+from finmodel.utils.settings import find_setting, load_config, parse_date
 
-def main():
+
+def main(config=None):
+    config = config or load_config()
     # --- Пути ---
     base_dir = Path(__file__).resolve().parents[3]
-    db_path = base_dir / "finmodel.db"
-    xls_path = base_dir / "Finmodel.xlsm"
+    db_path = Path(config.get("db_path", base_dir / "finmodel.db"))
 
     print(f"DB:  {db_path}")
-    print(f"XLS: {xls_path}")
 
-    # --- Дата запроса: берём из 'Настройки' (ПериодКонец), иначе сегодня ---
-    def get_date_param():
-        try:
-            df_set = pd.read_excel(xls_path, sheet_name="Настройки", engine="openpyxl")
-            val = df_set.loc[
-                df_set["Параметр"].astype(str).str.strip() == "ПериодКонец", "Значение"
-            ]
-            if not val.empty:
-                s = str(val.values[0]).strip().replace("T", " ")
-                try:
-                    return pd.to_datetime(s).strftime("%Y-%m-%d")
-                except Exception:
-                    pass
-        except Exception:
-            pass
-        return datetime.now().strftime("%Y-%m-%d")
-
-    date_param = get_date_param()
+    # --- Дата запроса: берём из конфигурации (ПериодКонец), иначе сегодня ---
+    date_raw = find_setting("ПериодКонец")
+    if date_raw:
+        date_param = parse_date(date_raw).strftime("%Y-%m-%d")
+    else:
+        date_param = datetime.now().strftime("%Y-%m-%d")
     print(f"Дата для запроса тарифов: {date_param}")
 
     # --- Чтение токенов (перебор до первого рабочего) ---
-    df_orgs = pd.read_excel(xls_path, sheet_name="НастройкиОрганизаций", engine="openpyxl")
-    tokens = df_orgs["Token_WB"].dropna().astype(str).map(str.strip).tolist()
+    df_orgs = pd.DataFrame(config.get("organizations", []))
+    tokens = df_orgs.get("Token_WB", pd.Series()).dropna().astype(str).map(str.strip).tolist()
 
     if not tokens:
         print("❗ Не найдено ни одного токена в 'НастройкиОрганизаций'.")

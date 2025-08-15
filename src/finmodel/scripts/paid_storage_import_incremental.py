@@ -6,15 +6,16 @@ from pathlib import Path
 import pandas as pd
 import requests
 
+from finmodel.utils.settings import load_config
 
-def main():
+
+def main(config=None):
+    config = config or load_config()
     # ---------- Paths ----------
     base_dir = Path(__file__).resolve().parents[3]
-    db_path = base_dir / "finmodel.db"
-    xls_path = base_dir / "Finmodel.xlsm"
+    db_path = Path(config.get("db_path", base_dir / "finmodel.db"))
 
     print(f"DB:  {db_path}")
-    print(f"XLS: {xls_path}")
 
     # ---------- Helpers ----------
     def iso_date(d: date) -> str:
@@ -33,10 +34,10 @@ def main():
         time.sleep(sec)
 
     # ---------- Orgs ----------
-    df_orgs = pd.read_excel(xls_path, sheet_name="НастройкиОрганизаций", engine="openpyxl")
+    df_orgs = pd.DataFrame(config.get("organizations", []))
     df_orgs = df_orgs[["id", "Организация", "Token_WB"]].dropna()
     if df_orgs.empty:
-        print("❗ 'НастройкиОрганизаций' пуст или нет колонок id/Организация/Token_WB.")
+        print("❗ Конфигурация не содержит организаций с токенами.")
         raise SystemExit(1)
 
     # ---------- DB ----------

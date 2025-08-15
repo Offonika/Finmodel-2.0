@@ -6,19 +6,23 @@ from pathlib import Path
 import pandas as pd
 import requests
 
+from finmodel.utils.settings import load_config
 
-def main():
+
+def main(config=None):
+    config = config or load_config()
     # --- Пути ---
     base_dir = Path(__file__).resolve().parents[3]
-    db_path = base_dir / "finmodel.db"
-    xls_path = base_dir / "Finmodel.xlsm"
+    db_path = Path(config.get("db_path", base_dir / "finmodel.db"))
 
     print(f"DB: {db_path}")
-    print(f"XLSX: {xls_path}")
 
     # --- Читаем организации/токены ---
-    df_orgs = pd.read_excel(xls_path, sheet_name="НастройкиОрганизаций", engine="openpyxl")
+    df_orgs = pd.DataFrame(config.get("organizations", []))
     df_orgs = df_orgs[["id", "Организация", "Token_WB"]].dropna()
+    if df_orgs.empty:
+        print("❗ Конфигурация не содержит организаций с токенами.")
+        return
 
     # --- Итоговые поля таблицы ---
     FIELDS = [
