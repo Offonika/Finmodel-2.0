@@ -1,12 +1,12 @@
-import os
+from pathlib import Path
 import sqlite3
 import requests
 import pandas as pd
 
 # --- Пути ---
-base_dir = os.path.abspath(os.path.join(os.getcwd(), ".."))
-db_path = os.path.join(base_dir, "finmodel.db")
-xls_path = os.path.join(base_dir, "Finmodel.xlsm")
+base_dir = Path(__file__).resolve().parent.parent
+db_path = base_dir / "finmodel.db"
+xls_path = base_dir / "Finmodel.xlsm"
 
 # --- Чтение всех токенов ---
 df_orgs = pd.read_excel(xls_path, sheet_name="НастройкиОрганизаций", engine="openpyxl")
