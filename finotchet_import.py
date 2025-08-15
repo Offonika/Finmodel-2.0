@@ -1,11 +1,11 @@
-import os
+from pathlib import Path
 import sqlite3
 import json
 import ast
 
 # --- Пути к базе ---
-base_dir = os.path.abspath(os.path.join(os.getcwd(), ".."))
-db_path = os.path.join(base_dir, "finmodel.db")
+base_dir = Path(__file__).resolve().parent.parent
+db_path = base_dir / "finmodel.db"
 
 # --- Список всех WB-полей ---
 WB_FIELDS = [
