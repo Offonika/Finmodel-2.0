@@ -184,4 +184,7 @@ def write_to_db_odbc(rows: List[Dict[str, Any]], dsn: str, table: str = "dbo.spp
         ))
     cur.fast_executemany = True
     step = 1000
-    for i in range(0
+    for i in range(0, len(batch), step):
+        cur.executemany(sql, batch[i:i + step])
+    cur.close()
+    cn.close()
