@@ -57,6 +57,8 @@ finmodel dump_schema --db finmodel.db --output schema.sql
    Файл `Настройки.xlsm` с колонками `id`, `Организация` и `Token_WB` должен
    находиться в корне проекта рядом с базой данных `finmodel.db`. Переменные
    окружения с такими же ключами переопределяют значения файла конфигурации.
+   Путь к корню проекта можно задать через `FINMODEL_PROJECT_ROOT`, а путь к
+   базе данных — через `FINMODEL_DB_PATH`.
 5. Запускайте нужный скрипт через единый CLI:
    ```bash
    finmodel saleswb_import_flat

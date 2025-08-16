@@ -1,10 +1,10 @@
 import sqlite3
 import time
-from pathlib import Path
 
 import requests
 
 from finmodel.logger import get_logger
+from finmodel.utils.paths import get_db_path
 from finmodel.utils.settings import find_setting, load_organizations
 
 # Keep REQUIRED_COLUMNS in sync with ``load_organizations`` implementation.
@@ -15,8 +15,7 @@ logger = get_logger(__name__)
 
 def main() -> None:
     # 📌 Paths
-    base_dir = Path(__file__).resolve().parents[3]
-    db_path = base_dir / "finmodel.db"
+    db_path = get_db_path()
 
     # 📌 Load organizations
     sheet = find_setting("ORG_SHEET", default="НастройкиОрганизаций")

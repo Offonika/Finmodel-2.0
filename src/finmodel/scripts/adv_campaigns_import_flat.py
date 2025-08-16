@@ -1,12 +1,12 @@
 import sqlite3
 import time
 from datetime import datetime
-from pathlib import Path
 
 import pandas as pd
 import requests
 
 from finmodel.logger import get_logger
+from finmodel.utils.paths import get_db_path
 from finmodel.utils.settings import load_organizations
 
 logger = get_logger(__name__)
@@ -14,8 +14,7 @@ logger = get_logger(__name__)
 
 def main() -> None:
     # --- Paths ---
-    base_dir = Path(__file__).resolve().parents[3]
-    db_path = base_dir / "finmodel.db"
+    db_path = get_db_path()
 
     logger.info("DB: %s", db_path)
 

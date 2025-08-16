@@ -1,9 +1,9 @@
 import sqlite3
-from pathlib import Path
 
 import requests
 
 from finmodel.logger import get_logger
+from finmodel.utils.paths import get_db_path
 from finmodel.utils.settings import load_organizations
 
 logger = get_logger(__name__)
@@ -11,8 +11,7 @@ logger = get_logger(__name__)
 
 def main() -> None:
     # --- Paths ---
-    base_dir = Path(__file__).resolve().parents[3]
-    db_path = base_dir / "finmodel.db"
+    db_path = get_db_path()
 
     # --- Load all tokens ---
     df_orgs = load_organizations()
