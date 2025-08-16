@@ -7,6 +7,9 @@ import requests
 from finmodel.logger import get_logger
 from finmodel.utils.settings import load_organizations
 
+# Keep REQUIRED_COLUMNS in sync with ``load_organizations`` implementation.
+REQUIRED_COLUMNS = {"id", "Организация", "Token_WB"}
+
 logger = get_logger(__name__)
 
 
@@ -17,6 +20,15 @@ def main() -> None:
 
     # 📌 Load organizations
     df_orgs = load_organizations()
+
+    missing_cols = REQUIRED_COLUMNS - set(df_orgs.columns)
+    if missing_cols:
+        logger.error(
+            "Настройки.xlsm is missing required columns: %s",
+            ", ".join(sorted(missing_cols)),
+        )
+        return
+
     if df_orgs.empty:
         logger.error("Настройки.xlsm не содержит организаций с токенами.")
         return

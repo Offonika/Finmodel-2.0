@@ -94,10 +94,10 @@ finmodel menu
 
 ```text
 =========== Finmodel 2.0 ===========
- 1. orderswb_import_flat
- 2. saleswb_import_flat
- 3. katalog
- 0. Exit
+1. orderswb_import_flat
+2. saleswb_import_flat
+3. katalog
+0. Exit
 ====================================
 Select an option:
 ```
@@ -105,6 +105,10 @@ Select an option:
 Список формируется автоматически из зарегистрированных команд. Введите номер пункта
 и нажмите `Enter`. Параметры команд можно вводить интерактивно, когда скрипт их
 запрашивает. Для выхода из меню выберите `0`.
+
+> **Note**
+> `katalog` and other data-import scripts expect the workbook `Настройки.xlsm` to
+> contain the columns `id`, `Организация` and `Token_WB`.
 
 ## Docker
 Docker-образ позволяет запускать любой скрипт импорта в изолированном окружении.
