@@ -20,6 +20,7 @@ def main() -> None:
 
     # 📌 Load organizations
     sheet = find_setting("ORG_SHEET", default="Настройки")
+    logger.info("Using organizations sheet: %s", sheet)
     df_orgs = load_organizations(sheet=sheet)
 
     missing_cols = REQUIRED_COLUMNS - set(df_orgs.columns)

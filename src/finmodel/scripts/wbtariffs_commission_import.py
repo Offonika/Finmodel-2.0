@@ -16,6 +16,7 @@ def main() -> None:
 
     # --- Load all tokens ---
     sheet = find_setting("ORG_SHEET", default="Настройки")
+    logger.info("Using organizations sheet: %s", sheet)
     df_orgs = load_organizations(sheet=sheet)
     tokens = df_orgs["Token_WB"].dropna().astype(str).tolist()
     if not tokens:
