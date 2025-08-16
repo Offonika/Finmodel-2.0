@@ -8,7 +8,10 @@ from typing import Any, Dict
 import pandas as pd
 import yaml
 
+from finmodel.logger import get_logger
+
 _config: Dict[str, Any] | None = None
+logger = get_logger(__name__)
 
 
 def load_config(path: str | Path | None = None) -> Dict[str, Any]:
@@ -74,4 +77,10 @@ def load_organizations(path: str | Path | None = None, sheet: str = "Настр�
         return pd.DataFrame(columns=["id", "Организация", "Token_WB"])
     df = pd.read_excel(xls_path, sheet_name=sheet)
     cols = ["id", "Организация", "Token_WB"]
+    missing_cols = [c for c in cols if c not in df.columns]
+    if missing_cols:
+        logger.warning(
+            "Missing columns %s in organizations workbook %s", ", ".join(missing_cols), xls_path
+        )
+        return pd.DataFrame(columns=cols)
     return df[cols].dropna()
