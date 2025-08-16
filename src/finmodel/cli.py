@@ -31,36 +31,6 @@ if scripts_dir.exists():
         app.command(module_info.name)(_create_command(module_info.name))
 
 
-@app.command("create_db")
-def create_db_command(db: Path = Path("finmodel.db"), schema: Path = Path("schema.sql")) -> None:
-    """Create an SQLite database from a schema file."""
-    from create_db import create_db as _create_db
-
-    _create_db(db, schema)
-    typer.echo(f"Database created at {db}")
-
-
-@app.command("dump_schema")
-def dump_schema_command(db: Path = Path("finmodel.db"), output: Path = Path("schema.sql")) -> None:
-    """Dump SQL schema from the given database."""
-    import sqlite3
-
-    with sqlite3.connect(db) as conn:
-        cursor = conn.cursor()
-        cursor.execute(
-            """
-            SELECT sql FROM sqlite_master
-            WHERE type IN ('table', 'index', 'trigger')
-            AND name NOT LIKE 'sqlite_%'
-            """
-        )
-        schema = [row[0] for row in cursor.fetchall() if row[0]]
-    with output.open("w", encoding="utf-8") as f:
-        for stmt in schema:
-            f.write(stmt.strip() + ";\n\n")
-    typer.echo(f"Schema dumped to {output}")
-
-
 def _prompt_path(prompt: str, default: Path, must_exist: bool = False) -> Path:
     while True:
         user_input = typer.prompt(prompt, default=str(default))
@@ -104,11 +74,15 @@ def menu() -> None:
             elif choice == "4":
                 db = _prompt_path("Database path", Path("finmodel.db"))
                 schema = _prompt_path("Schema path", Path("schema.sql"), must_exist=True)
-                app.invoke(app.commands["create_db"].callback, db=db, schema=schema)
+                from finmodel.scripts.create_db import main as create_db_main
+
+                create_db_main(db=db, schema=schema)
             elif choice == "5":
                 db = _prompt_path("Database path", Path("finmodel.db"), must_exist=True)
                 output = _prompt_path("Output schema path", Path("schema.sql"))
-                app.invoke(app.commands["dump_schema"].callback, db=db, output=output)
+                from finmodel.scripts.dump_schema import main as dump_schema_main
+
+                dump_schema_main(db=db, output=output)
             elif choice == "0":
                 break
             else:
