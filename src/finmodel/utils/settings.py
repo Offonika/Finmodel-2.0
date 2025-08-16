@@ -76,11 +76,15 @@ def load_organizations(path: str | Path | None = None, sheet: str = "Настр�
     if not xls_path.exists():
         return pd.DataFrame(columns=["id", "Организация", "Token_WB"])
     df = pd.read_excel(xls_path, sheet_name=sheet)
-    cols = ["id", "Организация", "Token_WB"]
-    missing_cols = [c for c in cols if c not in df.columns]
+    df.columns = df.columns.str.strip()
+    required = {"id": "id", "организация": "Организация", "token_wb": "Token_WB"}
+    normalized = {c.lower(): c for c in df.columns}
+    missing_cols = [required[k] for k in required if k not in normalized]
     if missing_cols:
         logger.warning(
             "Missing columns %s in organizations workbook %s", ", ".join(missing_cols), xls_path
         )
-        return pd.DataFrame(columns=cols)
-    return df[cols].dropna()
+        return pd.DataFrame(columns=list(required.values()))
+    rename_map = {normalized[k]: v for k, v in required.items()}
+    df = df.rename(columns=rename_map)
+    return df[list(required.values())].dropna()
