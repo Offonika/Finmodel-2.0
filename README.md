@@ -2,6 +2,8 @@
 
 Python-утилиты для импорта и анализа финансовых данных с маркетплейса Wildberries.
 
+> **Примечание.** Документация проекта ведётся на русском языке; новые материалы также следует оформлять на русском.
+
 ## Возможности
 - Импорт рекламных кампаний, заказов, остатков, тарифов и других данных с помощью отдельных скриптов.
 - Сохранение загруженных записей в `finmodel.db` для последующего анализа.
@@ -45,28 +47,28 @@ Python-утилиты для импорта и анализа финансовы
    # либо после установки пакета:
    saleswb_import_flat
    # или через единый интерфейс:
-   finmodel run saleswb_import_flat
+   finmodel saleswb_import_flat
    # или через модуль пакета:
-   python -m finmodel run saleswb_import_flat
+   PYTHONPATH=src python -m finmodel saleswb_import_flat
    ```
 
-## CLI usage
+## Использование CLI
 
-The project exposes a single `finmodel` command that provides access to every supported script.
+Проект предоставляет единую команду `finmodel`, которая даёт доступ ко всем поддерживаемым скриптам.
 
-Show the available subcommands:
+Выведите список доступных подкоманд:
 
 ```bash
 finmodel --help
 ```
 
-Run one of them:
+Запустите любую из них:
 
 ```bash
-finmodel run saleswb_import_flat
+finmodel saleswb_import_flat
 ```
 
-The previous `python -m finmodel.scripts.*` form still works for compatibility, but the dedicated CLI removes the need for it.
+Старый формат `python -m finmodel.scripts.*` по-прежнему работает для совместимости, но теперь в нём нет необходимости.
 
 ## Docker
 Docker-образ позволяет запускать любой скрипт импорта в изолированном окружении.
