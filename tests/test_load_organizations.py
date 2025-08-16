@@ -103,28 +103,51 @@ def test_load_organizations_logs_path_sheet_and_count(excel_with_blank_rows, cap
     assert not df.empty
 
 
-def test_load_organizations_warns_on_missing_workbook(tmp_path, caplog):
+@pytest.fixture
+def log_missing_workbook(tmp_path, caplog):
     missing = tmp_path / "no.xlsx"
-    with caplog.at_level("INFO", logger="finmodel.utils.settings"):
-        df = load_organizations(missing)
-    assert df.empty
-    assert f"Loading organizations from {missing}" in caplog.text
-    assert "Workbook" in caplog.text and "not found" in caplog.text
+    with caplog.at_level("DEBUG", logger="finmodel.utils.settings"):
+        load_organizations(missing)
+    return missing, caplog.text
 
 
-def test_load_organizations_logs_available_sheets_when_sheet_missing(excel_mixed_headers, caplog):
+@pytest.fixture
+def log_sheet_missing(excel_mixed_headers, caplog):
     with caplog.at_level("DEBUG", logger="finmodel.utils.settings"):
         load_organizations(excel_mixed_headers, sheet="Missing")
-    assert "Available sheets" in caplog.text
-    assert "Sheet Missing not found" in caplog.text
+    return excel_mixed_headers, caplog.text
 
 
-def test_load_organizations_logs_expected_and_actual_columns(excel_missing_token, caplog):
+@pytest.fixture
+def log_column_mismatch(excel_missing_token, caplog):
     with caplog.at_level("DEBUG", logger="finmodel.utils.settings"):
         load_organizations(excel_missing_token)
-    assert "['id', 'Организация', 'Token_WB']" in caplog.text
-    assert "['id', 'Организация']" in caplog.text
-    assert "Data head for debugging" in caplog.text
+    return excel_missing_token, caplog.text
+
+
+def test_log_missing_workbook_includes_path_and_sheet(log_missing_workbook):
+    path, log = log_missing_workbook
+    assert str(path) in log
+    assert "sheet НастройкиОрганизаций" in log
+    assert "Workbook" in log and "not found" in log
+
+
+def test_log_sheet_missing_includes_path_sheet_and_available(log_sheet_missing):
+    path, log = log_sheet_missing
+    assert str(path) in log
+    assert "sheet Missing" in log
+    assert "Available sheets" in log
+    assert "Sheet Missing not found" in log
+
+
+def test_log_column_mismatch_includes_path_sheet_and_available(log_column_mismatch):
+    path, log = log_column_mismatch
+    assert str(path) in log
+    assert "sheet НастройкиОрганизаций" in log
+    assert "Available sheets" in log
+    assert "['id', 'Организация', 'Token_WB']" in log
+    assert "['id', 'Организация']" in log
+    assert "Data head for debugging" in log
 
 
 def test_katalog_handles_missing_columns(monkeypatch, caplog):
