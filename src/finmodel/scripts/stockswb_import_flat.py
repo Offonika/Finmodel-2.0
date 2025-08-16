@@ -26,7 +26,8 @@ def main() -> None:
     logger.info("Дата начала загрузки остатков: %s", period_start)
 
     # --- Load organizations ---
-    df_orgs = load_organizations()
+    sheet = find_setting("ORG_SHEET", default="Настройки")
+    df_orgs = load_organizations(sheet=sheet)
     if df_orgs.empty:
         logger.error("Настройки.xlsm не содержит организаций с токенами.")
         raise SystemExit(1)

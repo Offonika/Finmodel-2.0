@@ -64,6 +64,18 @@ def test_load_organizations_normalizes_headers(excel_mixed_headers):
     assert df.loc[0, "Token_WB"] == "tok"
 
 
+def test_load_organizations_uses_env_sheet(tmp_path, monkeypatch):
+    df_default = pd.DataFrame({"id": [1], "Организация": ["A"], "Token_WB": ["def"]})
+    df_custom = pd.DataFrame({"id": [2], "Организация": ["B"], "Token_WB": ["tok"]})
+    xls = tmp_path / "orgs.xlsx"
+    with pd.ExcelWriter(xls) as writer:
+        df_default.to_excel(writer, sheet_name="Настройки", index=False)
+        df_custom.to_excel(writer, sheet_name="Custom", index=False)
+    monkeypatch.setenv("ORG_SHEET", "Custom")
+    loaded = load_organizations(xls)
+    assert loaded.equals(df_custom)
+
+
 def test_load_organizations_logs_expected_and_actual_columns(excel_missing_token, caplog):
     with caplog.at_level("WARNING", logger="finmodel.utils.settings"):
         load_organizations(excel_missing_token)
@@ -73,7 +85,7 @@ def test_load_organizations_logs_expected_and_actual_columns(excel_missing_token
 
 def test_katalog_handles_missing_columns(monkeypatch, caplog):
     df = pd.DataFrame({"id": [1], "Организация": ["Org"]})
-    monkeypatch.setattr(katalog, "load_organizations", lambda: df)
+    monkeypatch.setattr(katalog, "load_organizations", lambda **_: df)
     connect = MagicMock()
     monkeypatch.setattr(katalog.sqlite3, "connect", connect)
     with caplog.at_level("ERROR"):
@@ -84,7 +96,7 @@ def test_katalog_handles_missing_columns(monkeypatch, caplog):
 
 def test_katalog_handles_empty_dataframe(monkeypatch, caplog):
     df = pd.DataFrame(columns=["id", "Организация", "Token_WB"])
-    monkeypatch.setattr(katalog, "load_organizations", lambda: df)
+    monkeypatch.setattr(katalog, "load_organizations", lambda **_: df)
     connect = MagicMock()
     monkeypatch.setattr(katalog.sqlite3, "connect", connect)
     with caplog.at_level("ERROR"):

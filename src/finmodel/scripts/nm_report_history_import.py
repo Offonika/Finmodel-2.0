@@ -6,7 +6,7 @@ from pathlib import Path
 import requests
 
 from finmodel.logger import get_logger
-from finmodel.utils.settings import load_organizations
+from finmodel.utils.settings import find_setting, load_organizations
 
 logger = get_logger(__name__)
 
@@ -25,7 +25,8 @@ def main() -> None:
     logger.info("Период запроса: %s .. %s", date_from, date_to)
 
     # --- Load organizations and tokens ---
-    df_orgs = load_organizations()
+    sheet = find_setting("ORG_SHEET", default="Настройки")
+    df_orgs = load_organizations(sheet=sheet)
     if df_orgs.empty:
         logger.error("Настройки.xlsm не содержит организаций с токенами.")
         raise SystemExit(1)
