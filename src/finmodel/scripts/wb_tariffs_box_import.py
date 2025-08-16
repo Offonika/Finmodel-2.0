@@ -5,7 +5,7 @@ from pathlib import Path
 import requests
 
 from finmodel.logger import get_logger
-from finmodel.utils.settings import find_setting, load_organizations, parse_date
+from finmodel.utils.settings import find_setting, load_organizations, load_period, parse_date
 
 logger = get_logger(__name__)
 
@@ -18,7 +18,7 @@ def main() -> None:
     logger.info("DB: %s", db_path)
 
     # --- Дата запроса: берём из конфигурации (ПериодКонец), иначе сегодня ---
-    date_raw = find_setting("ПериодКонец")
+    _, date_raw = load_period()
     if date_raw:
         date_param = parse_date(date_raw).strftime("%Y-%m-%d")
     else:

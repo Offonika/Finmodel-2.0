@@ -7,7 +7,12 @@ import requests
 from requests.adapters import HTTPAdapter, Retry
 
 from finmodel.logger import get_logger
-from finmodel.utils.settings import find_setting, load_organizations, parse_date
+from finmodel.utils.settings import (
+    find_setting,
+    load_organizations,
+    load_period,
+    parse_date,
+)
 
 logger = get_logger(__name__)
 
@@ -22,8 +27,12 @@ def main() -> None:
     db_path = base_dir / "finmodel.db"
 
     # --- Получаем период загрузки ---
-    period_start = parse_date(find_setting("ПериодНачало")).strftime("%Y-%m-%dT%H:%M:%S")
-    period_end = parse_date(find_setting("ПериодКонец")).strftime("%Y-%m-%dT%H:%M:%S")
+    period_start_raw, period_end_raw = load_period()
+    if not period_start_raw or not period_end_raw:
+        logger.error("Settings do not include ПериодНачало/ПериодКонец.")
+        raise SystemExit(1)
+    period_start = parse_date(period_start_raw).strftime("%Y-%m-%dT%H:%M:%S")
+    period_end = parse_date(period_end_raw).strftime("%Y-%m-%dT%H:%M:%S")
     logger.info("Период загрузки продаж: %s .. %s", period_start, period_end)
 
     # --- Load organizations ---

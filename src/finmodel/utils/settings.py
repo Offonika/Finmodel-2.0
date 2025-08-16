@@ -102,3 +102,43 @@ def load_organizations(path: str | Path | None = None, sheet: str | None = None)
     rename_map = {normalized[k]: v for k, v in required.items()}
     df = df.rename(columns=rename_map)
     return df[list(required.values())].dropna()
+
+
+def load_period(
+    path: str | Path | None = None, sheet: str | None = None
+) -> tuple[str | None, str | None]:
+    """Load ``ПериодНачало`` and ``ПериодКонец`` from ``Настройки.xlsm``.
+
+    The function searches for the first non-empty header row, normalizes the
+    column names and returns the first non-empty values from the ``ПериодНачало``
+    and ``ПериодКонец`` columns. Empty rows are skipped.
+    """
+
+    sheet = sheet or find_setting("ORG_SHEET", default="Настройки")
+    base_dir = Path(__file__).resolve().parents[3]
+    xls_path = Path(path or base_dir / "Настройки.xlsm")
+    if not xls_path.exists():
+        return None, None
+
+    df = pd.read_excel(xls_path, sheet_name=sheet, header=None)
+    df = df.dropna(how="all")
+    if df.empty:
+        return None, None
+
+    header_idx = df.index[0]
+    header = df.loc[header_idx].astype(str).str.strip()
+    df = df.loc[df.index > header_idx]
+    df.columns = header
+    df = df.dropna(how="all").reset_index(drop=True)
+    df.columns = df.columns.map(lambda c: str(c).strip())
+
+    def first_value(col_name: str) -> str | None:
+        col = df.get(col_name)
+        if col is None:
+            return None
+        col = col.dropna()
+        if col.empty:
+            return None
+        return str(col.iloc[0]).strip()
+
+    return first_value("ПериодНачало"), first_value("ПериодКонец")
