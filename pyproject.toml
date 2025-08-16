@@ -9,7 +9,10 @@ description = "Utilities for importing and analyzing Wildberries financial data"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+    "openpyxl",
+    "pandas",
     "PyYAML>=6.0",
+    "requests",
     "typer>=0.9",
 ]
 
