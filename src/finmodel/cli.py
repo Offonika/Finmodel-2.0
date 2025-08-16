@@ -66,11 +66,11 @@ def menu() -> None:
         choice = typer.prompt("Select an option").strip()
         try:
             if choice == "1":
-                app.invoke(app.commands["orderswb_import_flat"].callback)
+                app.commands["orderswb_import_flat"].callback()
             elif choice == "2":
-                app.invoke(app.commands["saleswb_import_flat"].callback)
+                app.commands["saleswb_import_flat"].callback()
             elif choice == "3":
-                app.invoke(app.commands["katalog"].callback)
+                app.commands["katalog"].callback()
             elif choice == "4":
                 db = _prompt_path("Database path", Path("finmodel.db"))
                 schema = _prompt_path("Schema path", Path("schema.sql"), must_exist=True)
