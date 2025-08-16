@@ -10,17 +10,22 @@ Python-утилиты для импорта и анализа финансовы
   отдельных скриптов.
 - Сохранение загруженных записей в `finmodel.db` для последующего анализа.
 
+## Структура
+- `devtools/` — вспомогательные скрипты для настройки окружения.
+- Рабочие скрипты лежат в пакете `finmodel` в подкаталоге `finmodel/scripts` и
+  запускаются через единый CLI `finmodel`.
+
 ## Установка
 Запустите скрипт для автоматической настройки, он установит зависимости и создаст базу
 данных `finmodel.db`:
 
 - Linux/macOS:
   ```bash
-  scripts/setup.sh
+  devtools/setup.sh
   ```
 - Windows:
   ```powershell
-  scripts\setup.ps1
+  devtools\setup.ps1
   ```
 
 Либо выполните следующие шаги вручную:
@@ -45,15 +50,17 @@ Python-утилиты для импорта и анализа финансовы
 Чтобы выгрузить схему из существующей базы данных:
 
 ```bash
+
 python -m finmodel.cli dump_schema --db finmodel.db --output schema.sql
 # или после установки пакета:
-finmodel dump_schema --db finmodel.db --output schema.sql
+
 ```
 
 4. Скопируйте `config.example.yml` в `config.yml` и заполните диапазоны дат.
    Файл `Настройки.xlsm` с колонками `id`, `Организация` и `Token_WB` должен
    находиться в корне проекта рядом с базой данных `finmodel.db`. Переменные
    окружения с такими же ключами переопределяют значения файла конфигурации.
+
 5. Запускайте нужный скрипт через модуль `finmodel.cli`, отдельную консольную команду или общий CLI:
    ```bash
    PYTHONPATH=src python -m finmodel.cli saleswb_import_flat
@@ -61,7 +68,8 @@ finmodel dump_schema --db finmodel.db --output schema.sql
    saleswb_import_flat
    # или через единый интерфейс:
    finmodel saleswb_import_flat
-   ```
+
+   Старый формат `python -m finmodel.scripts.*` по-прежнему работает для совместимости.
 
 ## Конфигурация
 
