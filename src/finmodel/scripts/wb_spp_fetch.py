@@ -38,7 +38,7 @@ def main():
     def resolve_db_path(cli_path: str | None) -> Path:
         if cli_path:
             return Path(cli_path).expanduser().resolve()
-        #  …/scriptsPB/wb_spp_fetch.py → …/finmodel.db
+        #  …/src/finmodel/scripts/wb_spp_fetch.py → …/finmodel.db
         return Path(__file__).resolve().parents[3] / "finmodel.db"
 
     args = parse_args()
