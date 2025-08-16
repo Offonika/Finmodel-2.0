@@ -34,7 +34,12 @@ if scripts_dir.exists():
 @app.command()
 def menu() -> None:
     """Interactive menu to run common commands."""
-    command_names = sorted(name for name in app.registered_commands if name != "menu")
+    registered = app.registered_commands
+    if isinstance(registered, dict):
+        command_map = {name: cmd for name, cmd in registered.items() if name and name != "menu"}
+    else:
+        command_map = {cmd.name: cmd for cmd in registered if cmd.name and cmd.name != "menu"}
+    command_names = sorted(command_map.keys())
     if not command_names:
         typer.echo("No commands available.")
         return
@@ -54,7 +59,7 @@ def menu() -> None:
             typer.echo("Invalid choice. Please try again.")
             continue
         try:
-            app.registered_commands[command_name].callback()
+            command_map[command_name].callback()
         except Exception as exc:  # pragma: no cover - defensive
             typer.echo(f"Error: {exc}")
         if not typer.confirm("Return to main menu?", default=True):
