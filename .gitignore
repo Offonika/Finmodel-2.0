@@ -20,3 +20,5 @@ venv/
 *.log
 *.pbix
 *.db
+finmodel.db
+log/
