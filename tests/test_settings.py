@@ -6,7 +6,7 @@ import pandas as pd
 import pytest
 
 sys.path.append(str(Path(__file__).resolve().parents[1] / "src"))
-from finmodel.utils.settings import load_organizations, parse_date
+from finmodel.utils.settings import load_organizations, load_period, parse_date
 
 
 @pytest.mark.parametrize(
@@ -29,3 +29,22 @@ def test_load_organizations_missing_columns(tmp_path):
     result = load_organizations(xls)
     assert list(result.columns) == ["id", "Организация", "Token_WB"]
     assert result.empty
+
+
+def test_load_period_skips_blank_rows(tmp_path):
+    df = pd.DataFrame({"ПериодНачало": ["2023-01-01"], "ПериодКонец": ["2023-01-31"]})
+    xls = tmp_path / "settings.xlsx"
+    with pd.ExcelWriter(xls) as writer:
+        df.to_excel(writer, sheet_name="Настройки", index=False, startrow=2)
+    start, end = load_period(xls, sheet="Настройки")
+    assert start == "2023-01-01"
+    assert end == "2023-01-31"
+
+
+def test_load_period_missing_columns(tmp_path):
+    df = pd.DataFrame({"foo": [1]})
+    xls = tmp_path / "settings.xlsx"
+    with pd.ExcelWriter(xls) as writer:
+        df.to_excel(writer, sheet_name="Настройки", index=False)
+    start, end = load_period(xls, sheet="Настройки")
+    assert start is None and end is None

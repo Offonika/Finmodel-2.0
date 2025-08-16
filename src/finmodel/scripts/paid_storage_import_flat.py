@@ -6,7 +6,7 @@ from pathlib import Path
 import requests
 
 from finmodel.logger import get_logger
-from finmodel.utils.settings import find_setting, load_organizations, parse_date
+from finmodel.utils.settings import find_setting, load_organizations, load_period, parse_date
 
 logger = get_logger(__name__)
 
@@ -36,8 +36,7 @@ def main() -> None:
         time.sleep(sec)
 
     # ---------------- Load settings ----------------
-    period_start_raw = find_setting("ПериодНачало")
-    period_end_raw = find_setting("ПериодКонец")
+    period_start_raw, period_end_raw = load_period()
 
     if not period_start_raw or not period_end_raw:
         logger.error("Settings do not include ПериодНачало/ПериодКонец.")
