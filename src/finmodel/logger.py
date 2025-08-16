@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 from typing import Optional
 
-LOG_DIR = Path(__file__).resolve().parents[2] / "log"
+from finmodel.utils.paths import get_project_root
+
+LOG_DIR = get_project_root() / "log"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 LOG_FILE = LOG_DIR / "finmodel.log"
 

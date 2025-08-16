@@ -1,17 +1,16 @@
 import ast
 import json
 import sqlite3
-from pathlib import Path
 
 from finmodel.logger import get_logger
+from finmodel.utils.paths import get_db_path
 
 logger = get_logger(__name__)
 
 
 def main():
     # --- Пути к базе ---
-    base_dir = Path(__file__).resolve().parents[3]
-    db_path = base_dir / "finmodel.db"
+    db_path = get_db_path()
 
     # --- Список всех WB-полей ---
     WB_FIELDS = [
