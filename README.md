@@ -52,21 +52,21 @@ Python-утилиты для импорта и анализа финансовы
 
 ## CLI usage
 
-The project provides a unified `finmodel` command for running any supported script.
+The project exposes a single `finmodel` command that provides access to every supported script.
 
-List available subcommands:
+Show the available subcommands:
 
 ```bash
 finmodel --help
 ```
 
-Run a subcommand:
+Run one of them:
 
 ```bash
 finmodel run saleswb_import_flat
 ```
 
-The legacy style `python -m finmodel.scripts.*` still functions but is no longer required when using the CLI.
+The previous `python -m finmodel.scripts.*` form still works for compatibility, but the dedicated CLI removes the need for it.
 
 ## Docker
 Docker-образ позволяет запускать любой скрипт импорта в изолированном окружении.
