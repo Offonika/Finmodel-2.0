@@ -37,6 +37,7 @@ def main() -> None:
 
     # --- Load organizations ---
     sheet = find_setting("ORG_SHEET", default="Настройки")
+    logger.info("Using organizations sheet: %s", sheet)
     df_orgs = load_organizations(sheet=sheet)
     if df_orgs.empty:
         logger.error("Настройки.xlsm не содержит организаций с токенами.")
