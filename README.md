@@ -45,10 +45,28 @@ Python-утилиты для импорта и анализа финансовы
    # либо после установки пакета:
    saleswb_import_flat
    # или через единый интерфейс:
-   finmodel saleswb_import_flat
+   finmodel run saleswb_import_flat
    # или через модуль пакета:
-   python -m finmodel saleswb_import_flat
+   python -m finmodel run saleswb_import_flat
    ```
+
+## CLI usage
+
+The project provides a unified `finmodel` command for running any supported script.
+
+List available subcommands:
+
+```bash
+finmodel --help
+```
+
+Run a subcommand:
+
+```bash
+finmodel run saleswb_import_flat
+```
+
+The legacy style `python -m finmodel.scripts.*` still functions but is no longer required when using the CLI.
 
 ## Docker
 Docker-образ позволяет запускать любой скрипт импорта в изолированном окружении.
