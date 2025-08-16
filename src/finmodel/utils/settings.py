@@ -75,9 +75,20 @@ def load_organizations(path: str | Path | None = None, sheet: str | None = None)
     sheet = sheet or find_setting("ORG_SHEET", default="НастройкиОрганизаций")
     base_dir = Path(__file__).resolve().parents[3]
     xls_path = Path(path or base_dir / "Настройки.xlsm")
+    logger.info("Loading organizations from %s sheet %s", xls_path, sheet)
     if not xls_path.exists():
+        logger.warning("Workbook %s not found", xls_path)
         return pd.DataFrame(columns=["id", "Организация", "Token_WB"])
-    df = pd.read_excel(xls_path, sheet_name=sheet, header=None)
+
+    xls = pd.ExcelFile(xls_path)
+    logger.debug("Available sheets in %s: %s", xls_path, xls.sheet_names)
+    if sheet not in xls.sheet_names:
+        logger.warning(
+            "Sheet %s not found in %s. Available sheets: %s", sheet, xls_path, xls.sheet_names
+        )
+        return pd.DataFrame(columns=["id", "Организация", "Token_WB"])
+
+    df = xls.parse(sheet_name=sheet, header=None)
     df = df.dropna(how="all")
     if df.empty:
         return pd.DataFrame(columns=["id", "Организация", "Token_WB"])
@@ -98,10 +109,14 @@ def load_organizations(path: str | Path | None = None, sheet: str | None = None)
             list(df.columns),
             xls_path,
         )
+        logger.debug("Data head for debugging:\n%s", df.head().to_string())
         return pd.DataFrame(columns=list(required.values()))
+
     rename_map = {normalized[k]: v for k, v in required.items()}
     df = df.rename(columns=rename_map)
-    return df[list(required.values())].dropna()
+    df = df[list(required.values())].dropna()
+    logger.info("Loaded %d organizations", len(df))
+    return df
 
 
 def load_period(

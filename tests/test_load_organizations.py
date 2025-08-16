@@ -24,13 +24,15 @@ def excel_missing_token(tmp_path):
 
 @pytest.fixture
 def mock_read_excel_missing(monkeypatch, tmp_path):
-    """Patch pd.read_excel to simulate missing columns."""
+    """Patch pd.ExcelFile to simulate missing columns."""
 
-    def fake_read_excel(*args, **kwargs):
-        return pd.DataFrame({0: ["id", 1]})
+    class FakeExcelFile:
+        sheet_names = ["НастройкиОрганизаций"]
 
-    monkeypatch.setattr(pd, "read_excel", fake_read_excel)
-    # Ensure the path exists so load_organizations proceeds to read_excel
+        def parse(self, *_, **__):
+            return pd.DataFrame({0: ["id", 1]})
+
+    monkeypatch.setattr(pd, "ExcelFile", lambda *_, **__: FakeExcelFile())
     xls = tmp_path / "orgs.xlsx"
     xls.touch()
     return xls
@@ -92,11 +94,37 @@ def test_load_organizations_uses_env_sheet(tmp_path, monkeypatch):
     pd.testing.assert_frame_equal(loaded, df_custom, check_dtype=False)
 
 
+def test_load_organizations_logs_path_sheet_and_count(excel_with_blank_rows, caplog):
+    with caplog.at_level("INFO", logger="finmodel.utils.settings"):
+        df = load_organizations(excel_with_blank_rows)
+    assert str(excel_with_blank_rows) in caplog.text
+    assert "sheet НастройкиОрганизаций" in caplog.text
+    assert "Loaded 1 organizations" in caplog.text
+    assert not df.empty
+
+
+def test_load_organizations_warns_on_missing_workbook(tmp_path, caplog):
+    missing = tmp_path / "no.xlsx"
+    with caplog.at_level("INFO", logger="finmodel.utils.settings"):
+        df = load_organizations(missing)
+    assert df.empty
+    assert f"Loading organizations from {missing}" in caplog.text
+    assert "Workbook" in caplog.text and "not found" in caplog.text
+
+
+def test_load_organizations_logs_available_sheets_when_sheet_missing(excel_mixed_headers, caplog):
+    with caplog.at_level("DEBUG", logger="finmodel.utils.settings"):
+        load_organizations(excel_mixed_headers, sheet="Missing")
+    assert "Available sheets" in caplog.text
+    assert "Sheet Missing not found" in caplog.text
+
+
 def test_load_organizations_logs_expected_and_actual_columns(excel_missing_token, caplog):
-    with caplog.at_level("WARNING", logger="finmodel.utils.settings"):
+    with caplog.at_level("DEBUG", logger="finmodel.utils.settings"):
         load_organizations(excel_missing_token)
     assert "['id', 'Организация', 'Token_WB']" in caplog.text
     assert "['id', 'Организация']" in caplog.text
+    assert "Data head for debugging" in caplog.text
 
 
 def test_katalog_handles_missing_columns(monkeypatch, caplog):
