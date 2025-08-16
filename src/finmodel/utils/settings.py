@@ -77,7 +77,16 @@ def load_organizations(path: str | Path | None = None, sheet: str | None = None)
     xls_path = Path(path or base_dir / "Настройки.xlsm")
     if not xls_path.exists():
         return pd.DataFrame(columns=["id", "Организация", "Token_WB"])
-    df = pd.read_excel(xls_path, sheet_name=sheet)
+    df = pd.read_excel(xls_path, sheet_name=sheet, header=None)
+    df = df.dropna(how="all")
+    if df.empty:
+        return pd.DataFrame(columns=["id", "Организация", "Token_WB"])
+    header_idx = df.index[0]
+    header = df.loc[header_idx].astype(str).str.strip()
+    header.name = None
+    df = df.loc[df.index > header_idx]
+    df.columns = header
+    df = df.dropna(how="all").reset_index(drop=True)
     df.columns = df.columns.str.strip()
     required = {"id": "id", "организация": "Организация", "token_wb": "Token_WB"}
     normalized = {c.lower(): c for c in df.columns}

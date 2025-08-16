@@ -27,7 +27,7 @@ def mock_read_excel_missing(monkeypatch, tmp_path):
     """Patch pd.read_excel to simulate missing columns."""
 
     def fake_read_excel(*args, **kwargs):
-        return pd.DataFrame({"id": [1]})
+        return pd.DataFrame({0: ["id", 1]})
 
     monkeypatch.setattr(pd, "read_excel", fake_read_excel)
     # Ensure the path exists so load_organizations proceeds to read_excel
@@ -43,6 +43,16 @@ def excel_mixed_headers(tmp_path):
     xls = tmp_path / "orgs.xlsx"
     with pd.ExcelWriter(xls) as writer:
         df.to_excel(writer, sheet_name="Настройки", index=False)
+    return xls
+
+
+@pytest.fixture
+def excel_with_blank_rows(tmp_path):
+    """Create an Excel file with leading blank rows."""
+    df = pd.DataFrame({"id": [1], "Организация": ["Org"], "Token_WB": ["tok"]})
+    xls = tmp_path / "orgs.xlsx"
+    with pd.ExcelWriter(xls) as writer:
+        df.to_excel(writer, sheet_name="Настройки", index=False, startrow=2)
     return xls
 
 
@@ -64,6 +74,12 @@ def test_load_organizations_normalizes_headers(excel_mixed_headers):
     assert df.loc[0, "Token_WB"] == "tok"
 
 
+def test_load_organizations_skips_leading_blank_rows(excel_with_blank_rows):
+    df = load_organizations(excel_with_blank_rows)
+    expected = pd.DataFrame({"id": [1], "Организация": ["Org"], "Token_WB": ["tok"]})
+    pd.testing.assert_frame_equal(df, expected, check_dtype=False)
+
+
 def test_load_organizations_uses_env_sheet(tmp_path, monkeypatch):
     df_default = pd.DataFrame({"id": [1], "Организация": ["A"], "Token_WB": ["def"]})
     df_custom = pd.DataFrame({"id": [2], "Организация": ["B"], "Token_WB": ["tok"]})
@@ -73,7 +89,7 @@ def test_load_organizations_uses_env_sheet(tmp_path, monkeypatch):
         df_custom.to_excel(writer, sheet_name="Custom", index=False)
     monkeypatch.setenv("ORG_SHEET", "Custom")
     loaded = load_organizations(xls)
-    assert loaded.equals(df_custom)
+    pd.testing.assert_frame_equal(loaded, df_custom, check_dtype=False)
 
 
 def test_load_organizations_logs_expected_and_actual_columns(excel_missing_token, caplog):
