@@ -2,26 +2,23 @@ import sqlite3
 import time
 from pathlib import Path
 
-import pandas as pd
 import requests
 
 from finmodel.logger import get_logger
-from finmodel.utils.settings import load_config
+from finmodel.utils.settings import load_organizations
 
 logger = get_logger(__name__)
 
 
-def main(config=None):
-    config = config or load_config()
-    # 📌 Пути к базе
+def main() -> None:
+    # 📌 Paths
     base_dir = Path(__file__).resolve().parents[3]
-    db_path = Path(config.get("db_path", base_dir / "finmodel.db"))
+    db_path = base_dir / "finmodel.db"
 
-    # 📌 Чтение таблицы организаций
-    df_orgs = pd.DataFrame(config.get("organizations", []))
-    df_orgs = df_orgs[["id", "Организация", "Token_WB"]].dropna()
+    # 📌 Load organizations
+    df_orgs = load_organizations()
     if df_orgs.empty:
-        logger.error("Конфигурация не содержит организаций с токенами.")
+        logger.error("Настройки.xlsm не содержит организаций с токенами.")
         return
 
     # 📌 Подключение к базе

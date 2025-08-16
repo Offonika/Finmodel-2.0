@@ -3,36 +3,33 @@ import sqlite3
 import time
 from pathlib import Path
 
-import pandas as pd
 import requests
 from requests.adapters import HTTPAdapter, Retry
 
 from finmodel.logger import get_logger
-from finmodel.utils.settings import find_setting, load_config, parse_date
+from finmodel.utils.settings import find_setting, load_organizations, parse_date
 
 logger = get_logger(__name__)
 
 
-def main(config=None):
-    config = config or load_config()
+def main() -> None:
     # Максимальный размер страницы, заявленный в документации WB API
     PAGE_LIMIT = 100_000
     REQUEST_TIMEOUT = 60
 
-    # --- Пути ---
+    # --- Paths ---
     base_dir = Path(__file__).resolve().parents[3]
-    db_path = Path(config.get("db_path", base_dir / "finmodel.db"))
+    db_path = base_dir / "finmodel.db"
 
     # --- Получаем период загрузки ---
     period_start = parse_date(find_setting("ПериодНачало")).strftime("%Y-%m-%dT%H:%M:%S")
     period_end = parse_date(find_setting("ПериодКонец")).strftime("%Y-%m-%dT%H:%M:%S")
     logger.info("Период загрузки продаж: %s .. %s", period_start, period_end)
 
-    # --- Чтение организаций ---
-    df_orgs = pd.DataFrame(config.get("organizations", []))
-    df_orgs = df_orgs[["id", "Организация", "Token_WB"]].dropna()
+    # --- Load organizations ---
+    df_orgs = load_organizations()
     if df_orgs.empty:
-        logger.error("Конфигурация не содержит организаций с токенами.")
+        logger.error("Настройки.xlsm не содержит организаций с токенами.")
         raise SystemExit(1)
 
     # --- Все возможные поля продажи (WB-API) ---

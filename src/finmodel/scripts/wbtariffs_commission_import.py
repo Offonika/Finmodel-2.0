@@ -1,26 +1,24 @@
 import sqlite3
 from pathlib import Path
 
-import pandas as pd
 import requests
 
 from finmodel.logger import get_logger
-from finmodel.utils.settings import load_config
+from finmodel.utils.settings import load_organizations
 
 logger = get_logger(__name__)
 
 
-def main(config=None):
-    config = config or load_config()
-    # --- Пути ---
+def main() -> None:
+    # --- Paths ---
     base_dir = Path(__file__).resolve().parents[3]
-    db_path = Path(config.get("db_path", base_dir / "finmodel.db"))
+    db_path = base_dir / "finmodel.db"
 
-    # --- Чтение всех токенов ---
-    df_orgs = pd.DataFrame(config.get("organizations", []))
-    tokens = df_orgs.get("Token_WB", pd.Series()).dropna().astype(str).tolist()
+    # --- Load all tokens ---
+    df_orgs = load_organizations()
+    tokens = df_orgs["Token_WB"].dropna().astype(str).tolist()
     if not tokens:
-        logger.error("Конфигурация не содержит токенов.")
+        logger.error("Настройки.xlsm не содержит организаций с токенами.")
         return
 
     # --- Поля по документации WB ---

@@ -57,3 +57,21 @@ def parse_date(dt) -> datetime:
         except ValueError:
             continue
     return pd.to_datetime(s).to_pydatetime()
+
+
+def load_organizations(path: str | Path | None = None, sheet: str = "Настройки") -> pd.DataFrame:
+    """Load organizations and tokens from an Excel workbook.
+
+    The workbook ``Настройки.xlsm`` is expected to live in the project root.
+    If ``path`` is provided, it overrides the default location. The returned
+    dataframe contains three columns: ``id``, ``Организация`` and ``Token_WB``.
+    Missing or empty rows are dropped.
+    """
+
+    base_dir = Path(__file__).resolve().parents[3]
+    xls_path = Path(path or base_dir / "Настройки.xlsm")
+    if not xls_path.exists():
+        return pd.DataFrame(columns=["id", "Организация", "Token_WB"])
+    df = pd.read_excel(xls_path, sheet_name=sheet)
+    cols = ["id", "Организация", "Token_WB"]
+    return df[cols].dropna()

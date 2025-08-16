@@ -48,9 +48,10 @@ Python-утилиты для импорта и анализа финансовы
 python -m finmodel.scripts.dump_schema --db finmodel.db --output schema.sql
 ```
 
-4. Скопируйте `config.example.yml` в `config.yml` и заполните путь к базе данных,
-   диапазоны дат и токены. Переменные окружения с такими же ключами переопределяют
-   значения файла.
+4. Скопируйте `config.example.yml` в `config.yml` и заполните диапазоны дат.
+   Файл `Настройки.xlsm` с колонками `id`, `Организация` и `Token_WB` должен
+   находиться в корне проекта рядом с базой данных `finmodel.db`. Переменные
+   окружения с такими же ключами переопределяют значения файла конфигурации.
 5. Запускайте нужный скрипт через модуль пакета, отдельную консольную команду или общий CLI:
    ```bash
    python -m finmodel.scripts.saleswb_import_flat
@@ -118,14 +119,21 @@ docker build -t finmodel .
 Запустите импорт, смонтировав файл конфигурации в контейнер:
 
 ```bash
-docker run --rm -v $(pwd)/config.yml:/app/config.yml finmodel
+docker run --rm \
+  -v $(pwd)/config.yml:/app/config.yml \
+  -v $(pwd)/Настройки.xlsm:/app/Настройки.xlsm \
+  -v $(pwd)/finmodel.db:/app/finmodel.db \
+  finmodel
 ```
 
 Замените скрипт с помощью переменной `FINMODEL_SCRIPT`:
 
 ```bash
 docker run --rm -e FINMODEL_SCRIPT=finmodel.scripts.orderswb_import_flat \
-  -v $(pwd)/config.yml:/app/config.yml finmodel
+  -v $(pwd)/config.yml:/app/config.yml \
+  -v $(pwd)/Настройки.xlsm:/app/Настройки.xlsm \
+  -v $(pwd)/finmodel.db:/app/finmodel.db \
+  finmodel
 ```
 
 Чтобы использовать PostgreSQL вместо SQLite, поднимите приложение через `docker-compose`:
@@ -137,6 +145,8 @@ services:
     build: .
     volumes:
       - ./config.yml:/app/config.yml:ro
+      - ./Настройки.xlsm:/app/Настройки.xlsm:ro
+      - ./finmodel.db:/app/finmodel.db
     environment:
       - FINMODEL_SCRIPT=finmodel.scripts.saleswb_import_flat
     depends_on:
@@ -166,7 +176,11 @@ docker-compose up --build
 Выполните `crontab -e` и добавьте строку:
 
 ```
-0 3 * * * docker run --rm -v /path/to/config.yml:/app/config.yml finmodel
+0 3 * * * docker run --rm \
+  -v /path/to/config.yml:/app/config.yml \
+  -v /path/to/Настройки.xlsm:/app/Настройки.xlsm \
+  -v /path/to/finmodel.db:/app/finmodel.db \
+  finmodel
 ```
 
 Этот пример запускает импорт каждый день в 03:00.
@@ -175,7 +189,10 @@ docker-compose up --build
 Создайте простую задачу, которая выполняет:
 
 ```
-docker run --rm -v C:\path\to\config.yml:/app/config.yml finmodel
+docker run --rm -v C:\path\to\config.yml:/app/config.yml \
+  -v C:\path\to\Настройки.xlsm:/app/Настройки.xlsm \
+  -v C:\path\to\finmodel.db:/app/finmodel.db \
+  finmodel
 ```
 
 Настройте триггер с нужным интервалом.
