@@ -25,7 +25,7 @@ def test_load_organizations_missing_columns(tmp_path):
     df = pd.DataFrame({"id": [1], "Организация": ["Org"]})
     xls = tmp_path / "orgs.xlsx"
     with pd.ExcelWriter(xls) as writer:
-        df.to_excel(writer, sheet_name="Настройки", index=False)
+        df.to_excel(writer, sheet_name="НастройкиОрганизаций", index=False)
     result = load_organizations(xls)
     assert list(result.columns) == ["id", "Организация", "Token_WB"]
     assert result.empty

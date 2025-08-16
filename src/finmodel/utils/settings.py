@@ -68,11 +68,11 @@ def load_organizations(path: str | Path | None = None, sheet: str | None = None)
     The workbook ``Настройки.xlsm`` is expected to live in the project root.
     If ``path`` is provided, it overrides the default location. The sheet name
     is looked up via :func:`find_setting` using ``ORG_SHEET`` and defaults to
-    ``"Настройки"``. The returned dataframe contains three columns: ``id``,
+    ``"НастройкиОрганизаций"``. The returned dataframe contains three columns: ``id``,
     ``Организация`` and ``Token_WB``. Missing or empty rows are dropped.
     """
 
-    sheet = sheet or find_setting("ORG_SHEET", default="Настройки")
+    sheet = sheet or find_setting("ORG_SHEET", default="НастройкиОрганизаций")
     base_dir = Path(__file__).resolve().parents[3]
     xls_path = Path(path or base_dir / "Настройки.xlsm")
     if not xls_path.exists():

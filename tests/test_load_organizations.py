@@ -18,7 +18,7 @@ def excel_missing_token(tmp_path):
     df = pd.DataFrame({"id": [1], "Организация": ["Org"]})
     xls = tmp_path / "orgs.xlsx"
     with pd.ExcelWriter(xls) as writer:
-        df.to_excel(writer, sheet_name="Настройки", index=False)
+        df.to_excel(writer, sheet_name="НастройкиОрганизаций", index=False)
     return xls
 
 
@@ -42,7 +42,7 @@ def excel_mixed_headers(tmp_path):
     df = pd.DataFrame({"ID": [1], "Организация ": ["Org"], "token_wb": ["tok"]})
     xls = tmp_path / "orgs.xlsx"
     with pd.ExcelWriter(xls) as writer:
-        df.to_excel(writer, sheet_name="Настройки", index=False)
+        df.to_excel(writer, sheet_name="НастройкиОрганизаций", index=False)
     return xls
 
 
@@ -52,7 +52,7 @@ def excel_with_blank_rows(tmp_path):
     df = pd.DataFrame({"id": [1], "Организация": ["Org"], "Token_WB": ["tok"]})
     xls = tmp_path / "orgs.xlsx"
     with pd.ExcelWriter(xls) as writer:
-        df.to_excel(writer, sheet_name="Настройки", index=False, startrow=2)
+        df.to_excel(writer, sheet_name="НастройкиОрганизаций", index=False, startrow=2)
     return xls
 
 
@@ -85,7 +85,7 @@ def test_load_organizations_uses_env_sheet(tmp_path, monkeypatch):
     df_custom = pd.DataFrame({"id": [2], "Организация": ["B"], "Token_WB": ["tok"]})
     xls = tmp_path / "orgs.xlsx"
     with pd.ExcelWriter(xls) as writer:
-        df_default.to_excel(writer, sheet_name="Настройки", index=False)
+        df_default.to_excel(writer, sheet_name="НастройкиОрганизаций", index=False)
         df_custom.to_excel(writer, sheet_name="Custom", index=False)
     monkeypatch.setenv("ORG_SHEET", "Custom")
     loaded = load_organizations(xls)
