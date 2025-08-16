@@ -20,17 +20,21 @@ def main() -> None:
 
     # 📌 Load organizations
     df_orgs = load_organizations()
+    headers = list(df_orgs.columns)
 
-    missing_cols = REQUIRED_COLUMNS - set(df_orgs.columns)
+    missing_cols = REQUIRED_COLUMNS - set(headers)
     if missing_cols:
         logger.error(
-            "Настройки.xlsm is missing required columns: %s",
+            "Настройки.xlsm is missing required columns: %s. Headers found: %s",
             ", ".join(sorted(missing_cols)),
+            headers,
         )
         return
 
     if df_orgs.empty:
-        logger.error("Настройки.xlsm не содержит организаций с токенами.")
+        logger.error(
+            "Настройки.xlsm не содержит организаций с токенами. Headers found: %s", headers
+        )
         return
 
     # 📌 Подключение к базе

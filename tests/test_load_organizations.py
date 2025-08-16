@@ -79,6 +79,7 @@ def test_katalog_handles_missing_columns(monkeypatch, caplog):
     with caplog.at_level("ERROR"):
         katalog.main()
     assert "missing required columns" in caplog.text
+    assert "['id', 'Организация']" in caplog.text
     connect.assert_not_called()
 
 
@@ -90,4 +91,5 @@ def test_katalog_handles_empty_dataframe(monkeypatch, caplog):
     with caplog.at_level("ERROR"):
         katalog.main()
     assert "не содержит организаций" in caplog.text
+    assert "['id', 'Организация', 'Token_WB']" in caplog.text
     connect.assert_not_called()
