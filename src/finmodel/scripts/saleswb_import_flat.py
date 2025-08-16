@@ -7,12 +7,7 @@ import requests
 from requests.adapters import HTTPAdapter, Retry
 
 from finmodel.logger import get_logger
-from finmodel.utils.settings import (
-    find_setting,
-    load_organizations,
-    load_period,
-    parse_date,
-)
+from finmodel.utils.settings import load_organizations, load_period, parse_date
 
 logger = get_logger(__name__)
 
@@ -36,9 +31,7 @@ def main() -> None:
     logger.info("Период загрузки продаж: %s .. %s", period_start, period_end)
 
     # --- Load organizations ---
-    sheet = find_setting("ORG_SHEET", default="Настройки")
-    logger.info("Using organizations sheet: %s", sheet)
-    df_orgs = load_organizations(sheet=sheet)
+    df_orgs = load_organizations()
     if df_orgs.empty:
         logger.error("Настройки.xlsm не содержит организаций с токенами.")
         raise SystemExit(1)
