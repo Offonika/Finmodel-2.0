@@ -34,7 +34,7 @@ if scripts_dir.exists():
 @app.command()
 def menu() -> None:
     """Interactive menu to run common commands."""
-    command_names = sorted(name for name in app.commands if name != "menu")
+    command_names = sorted(name for name in app.registered_commands if name != "menu")
     if not command_names:
         typer.echo("No commands available.")
         return
@@ -54,7 +54,7 @@ def menu() -> None:
             typer.echo("Invalid choice. Please try again.")
             continue
         try:
-            app.commands[command_name].callback()
+            app.registered_commands[command_name].callback()
         except Exception as exc:  # pragma: no cover - defensive
             typer.echo(f"Error: {exc}")
         if not typer.confirm("Return to main menu?", default=True):
