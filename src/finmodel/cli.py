@@ -31,63 +31,30 @@ if scripts_dir.exists():
         app.command(module_info.name)(_create_command(module_info.name))
 
 
-def _prompt_path(prompt: str, default: Path, must_exist: bool = False) -> Path:
-    while True:
-        user_input = typer.prompt(prompt, default=str(default))
-        try:
-            path = Path(user_input).expanduser()
-        except Exception as exc:  # pragma: no cover - defensive
-            typer.echo(f"Invalid path: {exc}")
-            continue
-        if must_exist and not path.exists():
-            typer.echo("Path does not exist. Please try again.")
-            continue
-        if not must_exist and not path.parent.exists():
-            typer.echo("Directory does not exist. Please try again.")
-            continue
-        return path
-
-
 @app.command()
 def menu() -> None:
     """Interactive menu to run common commands."""
-    menu_text = (
-        "=========== Finmodel 2.0 ===========\n"
-        " 1. Import orders WB\n"
-        " 2. Import sales WB\n"
-        " 3. Import product catalog\n"
-        " 4. Create new database from schema\n"
-        " 5. Dump schema from current DB\n"
-        " 0. Exit\n"
-        "====================================="
-    )
+    command_names = sorted(name for name in app.commands if name != "menu")
+    if not command_names:
+        typer.echo("No commands available.")
+        return
+
     while True:
-        typer.echo(menu_text)
+        typer.echo("=========== Finmodel 2.0 ===========")
+        for idx, name in enumerate(command_names, start=1):
+            typer.echo(f" {idx}. {name}")
+        typer.echo(" 0. Exit")
+        typer.echo("====================================")
         choice = typer.prompt("Select an option").strip()
+        if choice == "0":
+            break
         try:
-            if choice == "1":
-                app.commands["orderswb_import_flat"].callback()
-            elif choice == "2":
-                app.commands["saleswb_import_flat"].callback()
-            elif choice == "3":
-                app.commands["katalog"].callback()
-            elif choice == "4":
-                db = _prompt_path("Database path", Path("finmodel.db"))
-                schema = _prompt_path("Schema path", Path("schema.sql"), must_exist=True)
-                from finmodel.scripts.create_db import main as create_db_main
-
-                create_db_main(db=db, schema=schema)
-            elif choice == "5":
-                db = _prompt_path("Database path", Path("finmodel.db"), must_exist=True)
-                output = _prompt_path("Output schema path", Path("schema.sql"))
-                from finmodel.scripts.dump_schema import main as dump_schema_main
-
-                dump_schema_main(db=db, output=output)
-            elif choice == "0":
-                break
-            else:
-                typer.echo("Invalid choice. Please try again.")
-                continue
+            command_name = command_names[int(choice) - 1]
+        except (ValueError, IndexError):
+            typer.echo("Invalid choice. Please try again.")
+            continue
+        try:
+            app.commands[command_name].callback()
         except Exception as exc:  # pragma: no cover - defensive
             typer.echo(f"Error: {exc}")
         if not typer.confirm("Return to main menu?", default=True):
