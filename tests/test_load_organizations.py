@@ -64,6 +64,13 @@ def test_load_organizations_normalizes_headers(excel_mixed_headers):
     assert df.loc[0, "Token_WB"] == "tok"
 
 
+def test_load_organizations_logs_expected_and_actual_columns(excel_missing_token, caplog):
+    with caplog.at_level("WARNING", logger="finmodel.utils.settings"):
+        load_organizations(excel_missing_token)
+    assert "['id', 'Организация', 'Token_WB']" in caplog.text
+    assert "['id', 'Организация']" in caplog.text
+
+
 def test_katalog_handles_missing_columns(monkeypatch, caplog):
     df = pd.DataFrame({"id": [1], "Организация": ["Org"]})
     monkeypatch.setattr(katalog, "load_organizations", lambda: df)

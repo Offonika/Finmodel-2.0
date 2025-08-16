@@ -82,7 +82,10 @@ def load_organizations(path: str | Path | None = None, sheet: str = "Настр�
     missing_cols = [required[k] for k in required if k not in normalized]
     if missing_cols:
         logger.warning(
-            "Missing columns %s in organizations workbook %s", ", ".join(missing_cols), xls_path
+            "Expected columns %s but found %s in organizations workbook %s",
+            list(required.values()),
+            list(df.columns),
+            xls_path,
         )
         return pd.DataFrame(columns=list(required.values()))
     rename_map = {normalized[k]: v for k, v in required.items()}
