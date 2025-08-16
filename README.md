@@ -36,10 +36,10 @@ Python-утилиты для импорта и анализа финансовы
 3. Создайте пустую базу данных из файла `schema.sql`:
    ```bash
    sqlite3 finmodel.db < schema.sql
-   # либо через Python без клиента sqlite3
-   python -m finmodel.scripts.create_db
+   # либо через общий CLI
+   finmodel create_db
    # или укажите пути явно
-   python -m finmodel.scripts.create_db --db custom.db --schema custom_schema.sql
+   finmodel create_db --db custom.db --schema custom_schema.sql
 
    ```
 Чтобы выгрузить схему из существующей базы данных:
