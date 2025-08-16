@@ -32,7 +32,11 @@ Python-утилиты для импорта и анализа финансовы
    ```bash
    sqlite3 finmodel.db < schema.sql
    # либо через Python без клиента sqlite3
-   python create_db.py finmodel.db schema.sql
+
+   python create_db.py
+   # или укажите пути явно
+   python create_db.py custom.db custom_schema.sql
+
    ```
 4. Скопируйте `config.example.yml` в `config.yml` и заполните путь к базе данных, диапазоны дат и токены. Переменные окружения с такими же ключами переопределяют значения файла.
 5. Запускайте нужный скрипт через модуль пакета или установленную консольную команду, например:
