@@ -36,6 +36,16 @@ def mock_read_excel_missing(monkeypatch, tmp_path):
     return xls
 
 
+@pytest.fixture
+def excel_mixed_headers(tmp_path):
+    """Create an Excel file with spaced and case-varied headers."""
+    df = pd.DataFrame({"ID": [1], "Организация ": ["Org"], "token_wb": ["tok"]})
+    xls = tmp_path / "orgs.xlsx"
+    with pd.ExcelWriter(xls) as writer:
+        df.to_excel(writer, sheet_name="Настройки", index=False)
+    return xls
+
+
 def test_load_organizations_with_missing_column(excel_missing_token):
     df = load_organizations(excel_missing_token)
     assert list(df.columns) == ["id", "Организация", "Token_WB"]
@@ -46,6 +56,12 @@ def test_load_organizations_with_mocked_read_excel(mock_read_excel_missing):
     df = load_organizations(mock_read_excel_missing)
     assert list(df.columns) == ["id", "Организация", "Token_WB"]
     assert df.empty
+
+
+def test_load_organizations_normalizes_headers(excel_mixed_headers):
+    df = load_organizations(excel_mixed_headers)
+    assert list(df.columns) == ["id", "Организация", "Token_WB"]
+    assert df.loc[0, "Token_WB"] == "tok"
 
 
 def test_katalog_handles_missing_columns(monkeypatch, caplog):
