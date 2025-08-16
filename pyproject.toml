@@ -8,12 +8,16 @@ version = "0.1.0"
 description = "Utilities for importing and analyzing Wildberries financial data"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = ["PyYAML>=6.0"]
+dependencies = [
+    "PyYAML>=6.0",
+    "typer>=0.9",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [project.scripts]
+finmodel = "finmodel.cli:app"
 adv_campaigns_details_import_flat = "finmodel.scripts.adv_campaigns_details_import_flat:main"
 adv_campaigns_import_flat = "finmodel.scripts.adv_campaigns_import_flat:main"
 adv_fullstats_import_flat = "finmodel.scripts.adv_fullstats_import_flat:main"
