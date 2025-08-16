@@ -2,20 +2,18 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
-import pandas as pd
 import requests
 
 from finmodel.logger import get_logger
-from finmodel.utils.settings import find_setting, load_config, parse_date
+from finmodel.utils.settings import find_setting, load_organizations, parse_date
 
 logger = get_logger(__name__)
 
 
-def main(config=None):
-    config = config or load_config()
-    # --- Пути ---
+def main() -> None:
+    # --- Paths ---
     base_dir = Path(__file__).resolve().parents[3]
-    db_path = Path(config.get("db_path", base_dir / "finmodel.db"))
+    db_path = base_dir / "finmodel.db"
 
     logger.info("DB: %s", db_path)
 
@@ -27,12 +25,12 @@ def main(config=None):
         date_param = datetime.now().strftime("%Y-%m-%d")
     logger.info("Дата для запроса тарифов: %s", date_param)
 
-    # --- Чтение токенов (перебор до первого рабочего) ---
-    df_orgs = pd.DataFrame(config.get("organizations", []))
-    tokens = df_orgs.get("Token_WB", pd.Series()).dropna().astype(str).map(str.strip).tolist()
+    # --- Load tokens (try each until one works) ---
+    df_orgs = load_organizations()
+    tokens = df_orgs["Token_WB"].dropna().astype(str).map(str.strip).tolist()
 
     if not tokens:
-        logger.error("Не найдено ни одного токена в 'НастройкиОрганизаций'.")
+        logger.error("Настройки.xlsm не содержит организаций с токенами.")
         raise SystemExit(1)
 
     # --- Итоговая таблица (пересоздаём) ---

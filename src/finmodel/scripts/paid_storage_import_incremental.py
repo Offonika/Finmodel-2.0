@@ -3,20 +3,18 @@ import time
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-import pandas as pd
 import requests
 
 from finmodel.logger import get_logger
-from finmodel.utils.settings import load_config
+from finmodel.utils.settings import load_organizations
 
 logger = get_logger(__name__)
 
 
-def main(config=None):
-    config = config or load_config()
+def main() -> None:
     # ---------- Paths ----------
     base_dir = Path(__file__).resolve().parents[3]
-    db_path = Path(config.get("db_path", base_dir / "finmodel.db"))
+    db_path = base_dir / "finmodel.db"
 
     logger.info("DB: %s", db_path)
 
@@ -37,10 +35,9 @@ def main(config=None):
         time.sleep(sec)
 
     # ---------- Orgs ----------
-    df_orgs = pd.DataFrame(config.get("organizations", []))
-    df_orgs = df_orgs[["id", "Организация", "Token_WB"]].dropna()
+    df_orgs = load_organizations()
     if df_orgs.empty:
-        logger.error("Конфигурация не содержит организаций с токенами.")
+        logger.error("Настройки.xlsm не содержит организаций с токенами.")
         raise SystemExit(1)
 
     # ---------- DB ----------
