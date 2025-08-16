@@ -7,6 +7,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-ENV FINMODEL_SCRIPT=finmodel.scripts.saleswb_import_flat
+ENV FINMODEL_SCRIPT=saleswb_import_flat
 
-CMD ["sh", "-c", "python -m ${FINMODEL_SCRIPT}"]
+CMD ["sh", "-c", "python -m finmodel.cli ${FINMODEL_SCRIPT}"]

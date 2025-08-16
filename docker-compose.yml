@@ -6,7 +6,7 @@ services:
     volumes:
       - ./config.yml:/app/config.yml:ro
     environment:
-      - FINMODEL_SCRIPT=finmodel.scripts.saleswb_import_flat
+      - FINMODEL_SCRIPT=saleswb_import_flat
     depends_on:
       - db
 
