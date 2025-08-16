@@ -26,7 +26,8 @@ def main() -> None:
     logger.info("Дата для запроса тарифов: %s", date_param)
 
     # --- Load tokens (try each until one works) ---
-    df_orgs = load_organizations()
+    sheet = find_setting("ORG_SHEET", default="Настройки")
+    df_orgs = load_organizations(sheet=sheet)
     tokens = df_orgs["Token_WB"].dropna().astype(str).map(str.strip).tolist()
 
     if not tokens:

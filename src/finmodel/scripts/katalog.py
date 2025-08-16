@@ -5,7 +5,7 @@ from pathlib import Path
 import requests
 
 from finmodel.logger import get_logger
-from finmodel.utils.settings import load_organizations
+from finmodel.utils.settings import find_setting, load_organizations
 
 # Keep REQUIRED_COLUMNS in sync with ``load_organizations`` implementation.
 REQUIRED_COLUMNS = {"id", "Организация", "Token_WB"}
@@ -19,7 +19,8 @@ def main() -> None:
     db_path = base_dir / "finmodel.db"
 
     # 📌 Load organizations
-    df_orgs = load_organizations()
+    sheet = find_setting("ORG_SHEET", default="Настройки")
+    df_orgs = load_organizations(sheet=sheet)
 
     missing_cols = REQUIRED_COLUMNS - set(df_orgs.columns)
     if missing_cols:
