@@ -4,7 +4,7 @@ from pathlib import Path
 import requests
 
 from finmodel.logger import get_logger
-from finmodel.utils.settings import find_setting, load_organizations
+from finmodel.utils.settings import load_organizations
 
 logger = get_logger(__name__)
 
@@ -15,9 +15,7 @@ def main() -> None:
     db_path = base_dir / "finmodel.db"
 
     # --- Load all tokens ---
-    sheet = find_setting("ORG_SHEET", default="Настройки")
-    logger.info("Using organizations sheet: %s", sheet)
-    df_orgs = load_organizations(sheet=sheet)
+    df_orgs = load_organizations()
     tokens = df_orgs["Token_WB"].dropna().astype(str).tolist()
     if not tokens:
         logger.error("Настройки.xlsm не содержит организаций с токенами.")

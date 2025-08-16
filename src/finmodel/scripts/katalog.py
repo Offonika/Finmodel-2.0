@@ -19,7 +19,7 @@ def main() -> None:
     db_path = base_dir / "finmodel.db"
 
     # 📌 Load organizations
-    sheet = find_setting("ORG_SHEET", default="Настройки")
+    sheet = find_setting("ORG_SHEET", default="НастройкиОрганизаций")
     logger.info("Using organizations sheet: %s", sheet)
     df_orgs = load_organizations(sheet=sheet)
 
