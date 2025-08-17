@@ -11,6 +11,7 @@ __pycache__/
 .vscode/
 # виртуальное окружение
 venv/
+.venv/
 # данные Excel
 *.xlsm
 
