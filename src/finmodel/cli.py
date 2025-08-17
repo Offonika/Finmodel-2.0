@@ -6,7 +6,7 @@ from pathlib import Path
 
 import typer
 
-from finmodel.logger import setup_logging
+from finmodel.logger import LOG_FILE, setup_logging
 
 app = typer.Typer(help="Finmodel command line interface")
 
@@ -62,6 +62,8 @@ def menu() -> None:
             continue
         try:
             command_map[command_name].callback()
+            typer.echo("Command completed successfully.")
+            typer.echo(f"Logs available at {LOG_FILE}")
         except Exception as exc:  # pragma: no cover - defensive
             typer.echo(f"Error: {exc}")
         if not typer.confirm("Return to main menu?", default=True):
