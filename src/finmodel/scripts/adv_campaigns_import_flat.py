@@ -44,7 +44,8 @@ def main() -> None:
     # --- Пересоздаём таблицу ---
     total_rows = 0
     with sqlite3.connect(db_path) as conn:
-        with conn.cursor() as cursor:
+        cursor = conn.cursor()
+        try:
             cursor.execute("DROP TABLE IF EXISTS AdvCampaignsFlat;")
             cursor.execute(
                 f"""
@@ -145,6 +146,8 @@ def main() -> None:
                     logger.warning("  Ошибка вставки: %s", e)
 
                 time.sleep(0.3)  # лимит 5 req/sec
+        finally:
+            cursor.close()
 
     logger.info("✅ Готово. Всего записей добавлено/обновлено: %s", total_rows)
 
