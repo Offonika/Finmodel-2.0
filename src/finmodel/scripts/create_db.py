@@ -5,6 +5,8 @@ from pathlib import Path
 
 import typer
 
+from finmodel.logger import setup_logging
+
 
 def create_db(db_path: Path, schema_path: Path) -> None:
     """Create an SQLite database using the provided schema."""
@@ -20,6 +22,7 @@ def main(
     schema: Path = typer.Option(Path("schema.sql"), help="Path to SQL schema file."),
 ) -> None:
     """Create an SQLite database from a schema file."""
+    setup_logging()
     create_db(db, schema)
     typer.echo(f"Database created at {db}")
 

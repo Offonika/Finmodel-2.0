@@ -1,4 +1,8 @@
+from finmodel.logger import get_logger, setup_logging
+
+
 def main() -> None:
+    setup_logging()
     # -*- coding: utf-8 -*-
     import random
     import sqlite3
@@ -8,7 +12,6 @@ def main() -> None:
     import pandas as pd
     import requests
 
-    from finmodel.logger import get_logger
     from finmodel.utils.paths import get_db_path
     from finmodel.utils.settings import find_setting, load_organizations
 

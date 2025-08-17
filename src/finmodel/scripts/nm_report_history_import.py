@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 
 import requests
 
-from finmodel.logger import get_logger
+from finmodel.logger import get_logger, setup_logging
 from finmodel.utils.paths import get_db_path
 from finmodel.utils.settings import find_setting, load_organizations
 
@@ -12,6 +12,7 @@ logger = get_logger(__name__)
 
 
 def main() -> None:
+    setup_logging()
     # --- Paths ---
     db_path = get_db_path()
 
