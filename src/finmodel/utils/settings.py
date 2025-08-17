@@ -9,6 +9,7 @@ import pandas as pd
 import yaml
 
 from finmodel.logger import get_logger
+from finmodel.utils.paths import get_project_root
 
 _config: Dict[str, Any] | None = None
 logger = get_logger(__name__)
@@ -26,7 +27,7 @@ def load_config(path: str | Path | None = None) -> Dict[str, Any]:
     """
     global _config
     if _config is None:
-        base_dir = Path(__file__).resolve().parents[3]
+        base_dir = get_project_root()
         cfg_path = Path(path or os.getenv("FINMODEL_CONFIG", base_dir / "config.yml"))
         data: Dict[str, Any] = {}
         if cfg_path.exists():
@@ -73,7 +74,7 @@ def load_organizations(path: str | Path | None = None, sheet: str | None = None)
     """
 
     sheet = sheet or find_setting("ORG_SHEET", default="НастройкиОрганизаций")
-    base_dir = Path(__file__).resolve().parents[3]
+    base_dir = get_project_root()
     xls_path = Path(path or base_dir / "Настройки.xlsm")
     logger.info("Loading organizations from %s sheet %s", xls_path, sheet)
     if not xls_path.exists():
@@ -130,7 +131,7 @@ def load_period(
     """
 
     sheet = sheet or find_setting("ORG_SHEET", default="Настройки")
-    base_dir = Path(__file__).resolve().parents[3]
+    base_dir = get_project_root()
     xls_path = Path(path or base_dir / "Настройки.xlsm")
     if not xls_path.exists():
         return None, None

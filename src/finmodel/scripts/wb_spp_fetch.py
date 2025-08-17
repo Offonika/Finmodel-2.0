@@ -19,6 +19,7 @@ def main():
     import requests
 
     from finmodel.logger import get_logger
+    from finmodel.utils.paths import get_db_path
 
     # ──────────────────────────────────────────────────────────────────────────────
     # 1. Параметры и путь к базе
@@ -38,8 +39,7 @@ def main():
     def resolve_db_path(cli_path: str | None) -> Path:
         if cli_path:
             return Path(cli_path).expanduser().resolve()
-        #  …/src/finmodel/scripts/wb_spp_fetch.py → …/finmodel.db
-        return Path(__file__).resolve().parents[3] / "finmodel.db"
+        return get_db_path()
 
     args = parse_args()
     DB_PATH: Path = resolve_db_path(args.db)

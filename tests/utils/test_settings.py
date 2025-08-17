@@ -5,7 +5,8 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-sys.path.append(str(Path(__file__).resolve().parents[1] / "src"))
+# Ensure src is importable
+sys.path.append(str(Path(__file__).resolve().parents[2] / "src"))
 from finmodel.utils.settings import load_organizations, load_period, parse_date
 
 

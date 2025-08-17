@@ -1,8 +1,6 @@
 def main():
     # file: wb_spp_fetch.py  (v2)
-    import argparse
     import csv
-    import math
 
     # --- NEW: sqlite ---
     import sqlite3

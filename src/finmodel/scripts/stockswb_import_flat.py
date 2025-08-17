@@ -1,12 +1,12 @@
 import json
 import sqlite3
 import time
-from pathlib import Path
 
 import requests
 from requests.adapters import HTTPAdapter, Retry
 
 from finmodel.logger import get_logger
+from finmodel.utils.paths import get_db_path
 from finmodel.utils.settings import load_organizations, load_period, parse_date
 
 logger = get_logger(__name__)
@@ -18,8 +18,7 @@ def main() -> None:
     REQUEST_TIMEOUT = 60
 
     # --- Paths ---
-    base_dir = Path(__file__).resolve().parents[3]
-    db_path = base_dir / "finmodel.db"
+    db_path = get_db_path()
 
     # --- Получаем "ПериодНачало" ---
     period_start_raw, _ = load_period()
