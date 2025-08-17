@@ -169,6 +169,25 @@ Select an option:
 > `katalog` and other data-import scripts expect the workbook `Настройки.xlsm` to
 > contain the columns `id`, `Организация` and `Token_WB`.
 
+### finotchet_import
+
+`finotchet_import` загружает детализацию финансового отчёта через API
+`/api/v5/supplier/reportDetailByPeriod` и сохраняет данные в таблицы `FinOtchet`
+и `FinOtchetFlat`.
+
+Для работы скрипта в `Настройки.xlsm` должны быть указаны `Token_WB` для
+организаций, а также значения `ПериодНачало` и `ПериодКонец` на листе,
+заданном `SETTINGS_SHEET`.
+
+Пример запуска:
+
+```bash
+finmodel finotchet_import
+```
+
+Скрипт постранично запрашивает данные, передавая в параметр `rrdid` значение
+последней полученной записи, пока не загрузит весь отчёт за период.
+
 ## Docker
 Docker-образ позволяет запускать любой скрипт импорта в изолированном окружении.
 
