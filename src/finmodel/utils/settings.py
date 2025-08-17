@@ -81,15 +81,15 @@ def load_organizations(path: str | Path | None = None, sheet: str | None = None)
         logger.warning("Workbook %s not found", xls_path)
         return pd.DataFrame(columns=["id", "Организация", "Token_WB"])
 
-    xls = pd.ExcelFile(xls_path)
-    logger.debug("Available sheets in %s: %s", xls_path, xls.sheet_names)
-    if sheet not in xls.sheet_names:
-        logger.warning(
-            "Sheet %s not found in %s. Available sheets: %s", sheet, xls_path, xls.sheet_names
-        )
-        return pd.DataFrame(columns=["id", "Организация", "Token_WB"])
+    with pd.ExcelFile(xls_path) as xls:
+        logger.debug("Available sheets in %s: %s", xls_path, xls.sheet_names)
+        if sheet not in xls.sheet_names:
+            logger.warning(
+                "Sheet %s not found in %s. Available sheets: %s", sheet, xls_path, xls.sheet_names
+            )
+            return pd.DataFrame(columns=["id", "Организация", "Token_WB"])
 
-    df = xls.parse(sheet_name=sheet, header=None)
+        df = xls.parse(sheet_name=sheet, header=None)
     df = df.dropna(how="all")
     if df.empty:
         return pd.DataFrame(columns=["id", "Организация", "Token_WB"])
