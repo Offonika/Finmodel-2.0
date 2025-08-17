@@ -7,6 +7,7 @@ import pytest
 
 # Ensure src is importable
 sys.path.append(str(Path(__file__).resolve().parents[2] / "src"))
+import finmodel.utils.settings as settings
 from finmodel.utils.settings import load_organizations, load_period, parse_date
 
 
@@ -49,3 +50,14 @@ def test_load_period_missing_columns(tmp_path):
         df.to_excel(writer, sheet_name="Настройки", index=False)
     start, end = load_period(xls, sheet="Настройки")
     assert start is None and end is None
+
+
+def test_load_period_custom_sheet(tmp_path, monkeypatch):
+    df = pd.DataFrame({"ПериодНачало": ["2023-01-01"], "ПериодКонец": ["2023-01-31"]})
+    xls = tmp_path / "settings.xlsx"
+    with pd.ExcelWriter(xls) as writer:
+        df.to_excel(writer, sheet_name="Другое", index=False)
+    monkeypatch.setenv("SETTINGS_SHEET", "Другое")
+    monkeypatch.setattr(settings, "_config", None)
+    start, end = load_period(xls)
+    assert start == "2023-01-01" and end == "2023-01-31"
