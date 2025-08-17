@@ -27,6 +27,12 @@ def mock_read_excel_missing(monkeypatch, tmp_path):
     class FakeExcelFile:
         sheet_names = ["НастройкиОрганизаций"]
 
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
         def parse(self, *_, **__):
             return pd.DataFrame({0: ["id", 1]})
 
@@ -78,6 +84,15 @@ def test_load_organizations_skips_leading_blank_rows(excel_with_blank_rows):
     df = load_organizations(excel_with_blank_rows)
     expected = pd.DataFrame({"id": [1], "Организация": ["Org"], "Token_WB": ["tok"]})
     pd.testing.assert_frame_equal(df, expected, check_dtype=False)
+
+
+def test_load_organizations_no_resource_warning(excel_with_blank_rows):
+    import warnings
+
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always", ResourceWarning)
+        load_organizations(excel_with_blank_rows)
+    assert not any(issubclass(warn.category, ResourceWarning) for warn in w)
 
 
 def test_load_organizations_uses_env_sheet(tmp_path, monkeypatch):
