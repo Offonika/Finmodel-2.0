@@ -17,7 +17,7 @@ from typing import Optional, Tuple
 
 import requests
 
-from finmodel.logger import get_logger
+from finmodel.logger import get_logger, setup_logging
 from finmodel.utils.paths import get_db_path
 
 logger = get_logger(__name__)
@@ -104,6 +104,7 @@ def resolve_db_path(cli_path: str | None) -> Path:
 
 
 def main() -> None:
+    setup_logging()
     args = parse_args()
     db_path: Path = resolve_db_path(args.db)
 

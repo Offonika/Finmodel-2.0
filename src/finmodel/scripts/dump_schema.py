@@ -5,6 +5,8 @@ from pathlib import Path
 
 import typer
 
+from finmodel.logger import setup_logging
+
 
 def dump_schema(db_path: Path, output: Path) -> None:
     """Dump SQL schema from the given database into a file."""
@@ -28,6 +30,7 @@ def main(
     output: Path = typer.Option(Path("schema.sql"), help="Path for output schema file."),
 ) -> None:
     """Dump SQL schema from an SQLite database."""
+    setup_logging()
     dump_schema(db, output)
     typer.echo(f"Schema dumped to {output}")
 

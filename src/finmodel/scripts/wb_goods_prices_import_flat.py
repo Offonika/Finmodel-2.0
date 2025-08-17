@@ -1,4 +1,8 @@
+from finmodel.logger import get_logger, setup_logging
+
+
 def main():
+    setup_logging()
     # file: wb_spp_fetch.py  (v2)
     import csv
 
@@ -12,8 +16,6 @@ def main():
 
     import requests
     from requests.adapters import HTTPAdapter, Retry
-
-    from finmodel.logger import get_logger
 
     WB_ENDPOINT = "https://card.wb.ru/cards/v1/detail"
     CHUNK_SIZE = 100
