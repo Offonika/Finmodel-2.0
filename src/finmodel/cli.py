@@ -1,6 +1,7 @@
 """Command line interface for finmodel scripts."""
 
 import pkgutil
+import sys
 from importlib import import_module
 from pathlib import Path
 
@@ -72,4 +73,7 @@ def menu() -> None:
 def main() -> None:
     """Entry point for console_scripts."""
     setup_logging()
-    app()
+    if len(sys.argv) == 1:
+        menu()
+    else:
+        app()
