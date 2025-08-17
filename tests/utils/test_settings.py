@@ -8,7 +8,12 @@ import pytest
 # Ensure src is importable
 sys.path.append(str(Path(__file__).resolve().parents[2] / "src"))
 import finmodel.utils.settings as settings
-from finmodel.utils.settings import load_organizations, load_period, parse_date
+from finmodel.utils.settings import (
+    load_global_settings,
+    load_organizations,
+    load_period,
+    parse_date,
+)
 
 
 @pytest.mark.parametrize(
@@ -61,3 +66,26 @@ def test_load_period_custom_sheet(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "_config", None)
     start, end = load_period(xls)
     assert start == "2023-01-01" and end == "2023-01-31"
+
+
+def test_load_global_settings_basic(tmp_path):
+    df = pd.DataFrame({"Параметр": [" Foo", "Bar "], "Значение": [" 1", "2 "]})
+    xls = tmp_path / "settings.xlsx"
+    with pd.ExcelWriter(xls) as writer:
+        df.to_excel(writer, sheet_name="Настройки", index=False, startrow=1)
+    result = load_global_settings(xls, sheet="Настройки")
+    assert result == {"foo": "1", "bar": "2"}
+
+
+def test_load_global_settings_skips_blank(tmp_path):
+    df = pd.DataFrame(
+        {
+            "Параметр": [" foo ", " ", None, "BAR"],
+            "Значение": [" val1 ", "", "skip", " 42 "],
+        }
+    )
+    xls = tmp_path / "settings.xlsx"
+    with pd.ExcelWriter(xls) as writer:
+        df.to_excel(writer, sheet_name="Настройки", index=False, startrow=2)
+    result = load_global_settings(xls, sheet="Настройки")
+    assert result == {"foo": "val1", "bar": "42"}
