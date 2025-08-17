@@ -1,4 +1,3 @@
-import json
 import sqlite3
 import time
 
@@ -142,13 +141,10 @@ def main() -> None:
 
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
-    cursor.execute("DROP TABLE IF EXISTS FinOtchet;")
-    cursor.execute("CREATE TABLE FinOtchet (org_id INTEGER, Организация TEXT, json_data TEXT);")
-    cursor.execute("DROP TABLE IF EXISTS FinOtchetFlat;")
     fields_sql = ", ".join([f"{f} TEXT" for f in WB_FIELDS])
     cursor.execute(
         f"""
-    CREATE TABLE FinOtchetFlat (
+    CREATE TABLE IF NOT EXISTS FinOtchet (
         org_id INTEGER,
         Организация TEXT,
         {fields_sql},
@@ -199,28 +195,25 @@ def main() -> None:
                 logger.info("✅ Фин. отчёт загружен для этой организации.")
                 break
 
-            raw_rows = []
-            flat_rows = []
+            rows = []
             for rec in data:
-                raw_rows.append((org_id, org_name, json.dumps(rec, ensure_ascii=False)))
-                flat_rows.append([org_id, org_name] + [str(rec.get(f, "")) for f in WB_FIELDS])
+                rows.append([org_id, org_name] + [str(rec.get(f, "")) for f in WB_FIELDS])
 
             try:
-                cursor.executemany("INSERT INTO FinOtchet VALUES (?, ?, ?)", raw_rows)
                 placeholders = ",".join(["?"] * (2 + len(WB_FIELDS)))
                 cursor.executemany(
-                    f"INSERT OR REPLACE INTO FinOtchetFlat VALUES ({placeholders})",
-                    flat_rows,
+                    f"INSERT OR REPLACE INTO FinOtchet VALUES ({placeholders})",
+                    rows,
                 )
                 conn.commit()
             except Exception as e:
                 logger.warning("  Ошибка вставки: %s", e)
                 break
 
-            total_loaded += len(flat_rows)
-            logger.info("  +%s записей (итого: %s)", len(flat_rows), total_loaded)
+            total_loaded += len(rows)
+            logger.info("  +%s записей (итого: %s)", len(rows), total_loaded)
 
-            if len(flat_rows) < PAGE_LIMIT:
+            if len(rows) < PAGE_LIMIT:
                 logger.info("  ✅ Отчёт по периоду загружен полностью.")
                 break
 
@@ -229,7 +222,7 @@ def main() -> None:
             time.sleep(API_SLEEP)
 
     conn.close()
-    logger.info("✅ Все отчёты загружены в таблицы FinOtchet и FinOtchetFlat.")
+    logger.info("✅ Все отчёты загружены в таблицу FinOtchet.")
 
 
 if __name__ == "__main__":
