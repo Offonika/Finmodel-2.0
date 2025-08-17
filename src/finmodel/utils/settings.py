@@ -125,12 +125,14 @@ def load_period(
 ) -> tuple[str | None, str | None]:
     """Load ``ПериодНачало`` and ``ПериодКонец`` from ``Настройки.xlsm``.
 
-    The function searches for the first non-empty header row, normalizes the
-    column names and returns the first non-empty values from the ``ПериодНачало``
-    and ``ПериодКонец`` columns. Empty rows are skipped.
+    The workbook sheet is looked up via :func:`find_setting` using the
+    ``SETTINGS_SHEET`` key and defaults to ``"Настройки"``. The function
+    searches for the first non-empty header row, normalizes the column names and
+    returns the first non-empty values from the ``ПериодНачало`` and
+    ``ПериодКонец`` columns. Empty rows are skipped.
     """
 
-    sheet = sheet or find_setting("ORG_SHEET", default="Настройки")
+    sheet = sheet or find_setting("SETTINGS_SHEET", default="Настройки")
     base_dir = get_project_root()
     xls_path = Path(path or base_dir / "Настройки.xlsm")
     if not xls_path.exists():
