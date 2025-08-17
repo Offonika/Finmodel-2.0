@@ -127,11 +127,11 @@ def load_period(
 
     The workbook sheet is looked up via :func:`find_setting` using the
     ``SETTINGS_SHEET`` key and defaults to ``"Настройки"``. The sheet is
-    expected to contain two columns: ``Параметр`` and ``Значение``. Rows with
-    empty values (section headers) are ignored. The function searches the table
-    for ``ПериодНачало`` and ``ПериодКонец`` parameters and returns their string
-    values. If either parameter is missing, ``(None, None)`` is returned and a
-    warning is logged.
+    expected to contain two columns: ``Параметр`` and ``Значение``. Rows where
+    either column is blank (e.g. section headers) are ignored. The function
+    searches the table for ``ПериодНачало`` and ``ПериодКонец`` parameters and
+    returns their string values. If either parameter is missing, ``(None, None)``
+    is returned and a warning is logged.
     """
 
     sheet = sheet or find_setting("SETTINGS_SHEET", default="Настройки")
@@ -172,13 +172,9 @@ def load_period(
     for _, row in df.iterrows():
         key = row.get("Параметр")
         value = row.get("Значение")
-        if pd.isna(key) or pd.isna(value):
+        if pd.isna(key) or pd.isna(value) or str(key).strip() == "" or str(value).strip() == "":
             continue
-        key = str(key).strip()
-        value = str(value).strip()
-        if not key or not value:
-            continue
-        values[key] = value
+        values[str(key).strip()] = str(value).strip()
 
     start = values.get("ПериодНачало")
     end = values.get("ПериодКонец")
