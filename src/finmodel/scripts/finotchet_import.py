@@ -14,7 +14,6 @@ from finmodel.utils.settings import (
     parse_date,
 )
 
-setup_logging()
 logger = get_logger(__name__)
 
 
@@ -115,6 +114,8 @@ def make_http() -> requests.Session:
 
 
 def main() -> None:
+    setup_logging()
+
     PAGE_LIMIT = 100_000
     REQUEST_TIMEOUT = 60
     API_SLEEP = 60
