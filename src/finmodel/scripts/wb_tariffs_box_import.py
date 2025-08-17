@@ -5,7 +5,7 @@ import requests
 
 from finmodel.logger import get_logger
 from finmodel.utils.paths import get_db_path
-from finmodel.utils.settings import load_organizations, load_period, parse_date
+from finmodel.utils.settings import find_setting, load_organizations, load_period, parse_date
 
 logger = get_logger(__name__)
 
@@ -16,8 +16,13 @@ def main() -> None:
 
     logger.info("DB: %s", db_path)
 
+    org_sheet = find_setting("ORG_SHEET", default="НастройкиОрганизаций")
+    settings_sheet = find_setting("SETTINGS_SHEET", default="Настройки")
+    logger.info("Using organizations sheet %s", org_sheet)
+    logger.info("Using settings sheet %s", settings_sheet)
+
     # --- Дата запроса: берём из конфигурации (ПериодКонец), иначе сегодня ---
-    _, date_raw = load_period()
+    _, date_raw = load_period(sheet=settings_sheet)
     if date_raw:
         date_param = parse_date(date_raw).strftime("%Y-%m-%d")
     else:
@@ -25,7 +30,7 @@ def main() -> None:
     logger.info("Дата для запроса тарифов: %s", date_param)
 
     # --- Load tokens (try each until one works) ---
-    df_orgs = load_organizations()
+    df_orgs = load_organizations(sheet=org_sheet)
     tokens = df_orgs["Token_WB"].dropna().astype(str).map(str.strip).tolist()
 
     if not tokens:

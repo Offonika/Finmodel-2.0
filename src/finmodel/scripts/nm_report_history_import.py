@@ -6,7 +6,7 @@ import requests
 
 from finmodel.logger import get_logger
 from finmodel.utils.paths import get_db_path
-from finmodel.utils.settings import load_organizations
+from finmodel.utils.settings import find_setting, load_organizations
 
 logger = get_logger(__name__)
 
@@ -17,6 +17,11 @@ def main() -> None:
 
     logger.info("DB: %s", db_path)
 
+    org_sheet = find_setting("ORG_SHEET", default="НастройкиОрганизаций")
+    settings_sheet = find_setting("SETTINGS_SHEET", default="Настройки")
+    logger.info("Using organizations sheet %s", org_sheet)
+    logger.info("Using settings sheet %s", settings_sheet)
+
     # --- Период: всегда последние 7 дней (включая сегодня) ---
     today = datetime.now().date()
     date_from = (today - timedelta(days=7)).strftime("%Y-%m-%d")
@@ -24,7 +29,7 @@ def main() -> None:
     logger.info("Период запроса: %s .. %s", date_from, date_to)
 
     # --- Load organizations and tokens ---
-    df_orgs = load_organizations()
+    df_orgs = load_organizations(sheet=org_sheet)
     if df_orgs.empty:
         logger.error("Настройки.xlsm не содержит организаций с токенами.")
         raise SystemExit(1)
