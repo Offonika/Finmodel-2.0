@@ -160,3 +160,56 @@ def load_period(
         return str(col.iloc[0]).strip()
 
     return first_value("ПериодНачало"), first_value("ПериодКонец")
+
+
+def load_global_settings(
+    path: str | Path | None = None, sheet: str | None = None
+) -> Dict[str, str]:
+    """Load arbitrary ``Параметр``/``Значение`` pairs from ``Настройки.xlsm``.
+
+    The workbook sheet is looked up via :func:`find_setting` using the
+    ``SETTINGS_SHEET`` key and defaults to ``"Настройки"``. The function returns a
+    dictionary mapping normalized parameter names (trimmed and lower-cased) to
+    their string values. Blank rows or cells containing only whitespace are
+    ignored.
+    """
+
+    sheet = sheet or find_setting("SETTINGS_SHEET", default="Настройки")
+    base_dir = get_project_root()
+    xls_path = Path(path or base_dir / "Настройки.xlsm")
+    if not xls_path.exists():
+        return {}
+
+    df = pd.read_excel(xls_path, sheet_name=sheet, header=None)
+    df = df.dropna(how="all")
+    if df.empty:
+        return {}
+
+    header_idx = df.index[0]
+    header = df.loc[header_idx].astype(str).str.strip()
+    df = df.loc[df.index > header_idx]
+    df.columns = header
+    df = df.dropna(how="all").reset_index(drop=True)
+    df.columns = df.columns.map(lambda c: str(c).strip())
+
+    required = {"параметр": "Параметр", "значение": "Значение"}
+    normalized = {c.lower(): c for c in df.columns}
+    if not all(key in normalized for key in required):
+        return {}
+
+    rename_map = {normalized[k]: v for k, v in required.items()}
+    df = df.rename(columns=rename_map)
+    df = df[["Параметр", "Значение"]]
+
+    result: Dict[str, str] = {}
+    for _, row in df.iterrows():
+        key = row.get("Параметр")
+        value = row.get("Значение")
+        if pd.isna(key) or pd.isna(value):
+            continue
+        key = str(key).strip()
+        value = str(value).strip()
+        if not key or not value:
+            continue
+        result[key.lower()] = value
+    return result
