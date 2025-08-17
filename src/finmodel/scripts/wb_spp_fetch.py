@@ -109,7 +109,8 @@ def main() -> None:
 
     logger.info("Используем базу: %s", db_path)
     with sqlite3.connect(db_path) as con:
-        with con.cursor() as cur:
+        cur = con.cursor()
+        try:
             cur.execute(CREATE_WB_SPP_SQL)
 
             try:
@@ -148,6 +149,8 @@ def main() -> None:
 
             if batch:
                 cur.executemany(INSERT_SQL, batch)
+        finally:
+            cur.close()
 
     logger.info("Готово.")
 
