@@ -50,21 +50,27 @@ Python-утилиты для импорта и анализа финансовы
 Чтобы выгрузить схему из существующей базы данных:
 
 ```bash
-finmodel dump_schema --db finmodel.db --output schema.sql
+
+python -m finmodel.cli dump_schema --db finmodel.db --output schema.sql
+# или после установки пакета:
+
 ```
 
 4. Скопируйте `config.example.yml` в `config.yml` и заполните диапазоны дат.
    Файл `Настройки.xlsm` с колонками `id`, `Организация` и `Token_WB` должен
    находиться в корне проекта рядом с базой данных `finmodel.db`. Переменные
    окружения с такими же ключами переопределяют значения файла конфигурации.
-   Путь к корню проекта можно задать через `FINMODEL_PROJECT_ROOT`, а путь к
-   базе данных — через `FINMODEL_DB_PATH`.
-5. Запускайте нужный скрипт через единый CLI:
+
+
+5. Запускайте нужный скрипт через модуль `finmodel.cli`, отдельную консольную команду или общий CLI:
+
    ```bash
+   PYTHONPATH=src python -m finmodel.cli saleswb_import_flat
+   # либо после установки пакета:
+   saleswb_import_flat
+   # или через единый интерфейс:
    finmodel saleswb_import_flat
-   # или явно через модуль
-   python -m finmodel.cli saleswb_import_flat
-   ```
+
    Старый формат `python -m finmodel.scripts.*` по-прежнему работает для совместимости.
 
 ## Конфигурация
@@ -102,6 +108,11 @@ export ORG_SHEET=НастройкиОрганизаций
 ## Использование CLI
 
 Проект предоставляет единую команду `finmodel`, которая даёт доступ ко всем поддерживаемым скриптам.
+Без установки пакета можно воспользоваться модулем `finmodel.cli`:
+
+```bash
+python -m finmodel.cli --help
+```
 
 Выведите список доступных подкоманд:
 
@@ -116,7 +127,7 @@ finmodel saleswb_import_flat
 ```
 
 Старый формат `python -m finmodel.scripts.*` по-прежнему работает для совместимости,
-но теперь в нём нет необходимости.
+но предпочтительнее использовать `python -m finmodel.cli <команда>` или консольную команду `finmodel`.
 
 ### Интерактивное меню
 
@@ -168,7 +179,7 @@ docker run --rm \
 Замените скрипт с помощью переменной `FINMODEL_SCRIPT`:
 
 ```bash
-docker run --rm -e FINMODEL_SCRIPT=finmodel.scripts.orderswb_import_flat \
+docker run --rm -e FINMODEL_SCRIPT=orderswb_import_flat \
   -v $(pwd)/config.yml:/app/config.yml \
   -v $(pwd)/Настройки.xlsm:/app/Настройки.xlsm \
   -v $(pwd)/finmodel.db:/app/finmodel.db \
@@ -187,7 +198,7 @@ services:
       - ./Настройки.xlsm:/app/Настройки.xlsm:ro
       - ./finmodel.db:/app/finmodel.db
     environment:
-      - FINMODEL_SCRIPT=finmodel.scripts.saleswb_import_flat
+      - FINMODEL_SCRIPT=saleswb_import_flat
     depends_on:
       - db
   db:
