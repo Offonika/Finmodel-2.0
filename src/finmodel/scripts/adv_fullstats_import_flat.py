@@ -67,11 +67,11 @@ def main() -> None:
         except Exception:
             return True
 
-    # простой глобальный троттлер для всех POST
+    # простой троттлер для всех POST
     _last_post_ts = 0.0
 
     def throttle_fullstats():
-        global _last_post_ts
+        nonlocal _last_post_ts
         now = time.monotonic()
         wait = _last_post_ts + REQ_INTERVAL_SEC - now
         if wait > 0:
