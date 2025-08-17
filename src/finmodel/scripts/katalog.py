@@ -19,7 +19,9 @@ def main() -> None:
 
     # 📌 Load organizations
     sheet = find_setting("ORG_SHEET", default="НастройкиОрганизаций")
+    settings_sheet = find_setting("SETTINGS_SHEET", default="Настройки")
     logger.info("Using organizations sheet: %s", sheet)
+    logger.info("Using settings sheet %s", settings_sheet)
     df_orgs = load_organizations(sheet=sheet)
 
     missing_cols = REQUIRED_COLUMNS - set(df_orgs.columns)

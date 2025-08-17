@@ -7,7 +7,7 @@ from requests.adapters import HTTPAdapter, Retry
 
 from finmodel.logger import get_logger
 from finmodel.utils.paths import get_db_path
-from finmodel.utils.settings import load_organizations, load_period, parse_date
+from finmodel.utils.settings import find_setting, load_organizations, load_period, parse_date
 
 logger = get_logger(__name__)
 
@@ -20,8 +20,13 @@ def main() -> None:
     # --- Paths ---
     db_path = get_db_path()
 
+    org_sheet = find_setting("ORG_SHEET", default="НастройкиОрганизаций")
+    settings_sheet = find_setting("SETTINGS_SHEET", default="Настройки")
+    logger.info("Using organizations sheet %s", org_sheet)
+    logger.info("Using settings sheet %s", settings_sheet)
+
     # --- Получаем период загрузки ---
-    period_start_raw, period_end_raw = load_period()
+    period_start_raw, period_end_raw = load_period(sheet=settings_sheet)
     if not period_start_raw or not period_end_raw:
         logger.error("Settings do not include ПериодНачало/ПериодКонец.")
         raise SystemExit(1)
@@ -30,7 +35,7 @@ def main() -> None:
     logger.info("Период загрузки продаж: %s .. %s", period_start, period_end)
 
     # --- Load organizations ---
-    df_orgs = load_organizations()
+    df_orgs = load_organizations(sheet=org_sheet)
     if df_orgs.empty:
         logger.error("Настройки.xlsm не содержит организаций с токенами.")
         raise SystemExit(1)

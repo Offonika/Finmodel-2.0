@@ -6,7 +6,7 @@ import requests
 
 from finmodel.logger import get_logger
 from finmodel.utils.paths import get_db_path
-from finmodel.utils.settings import load_organizations
+from finmodel.utils.settings import find_setting, load_organizations
 
 logger = get_logger(__name__)
 
@@ -16,6 +16,11 @@ def main() -> None:
     db_path = get_db_path()
 
     logger.info("DB: %s", db_path)
+
+    org_sheet = find_setting("ORG_SHEET", default="НастройкиОрганизаций")
+    settings_sheet = find_setting("SETTINGS_SHEET", default="Настройки")
+    logger.info("Using organizations sheet %s", org_sheet)
+    logger.info("Using settings sheet %s", settings_sheet)
 
     # ---------- Helpers ----------
     def iso_date(d: date) -> str:
@@ -34,7 +39,7 @@ def main() -> None:
         time.sleep(sec)
 
     # ---------- Orgs ----------
-    df_orgs = load_organizations()
+    df_orgs = load_organizations(sheet=org_sheet)
     if df_orgs.empty:
         logger.error("Настройки.xlsm не содержит организаций с токенами.")
         raise SystemExit(1)

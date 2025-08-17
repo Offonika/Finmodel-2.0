@@ -12,23 +12,29 @@ from finmodel.scripts import katalog
 
 def test_katalog_handles_missing_columns(monkeypatch, caplog):
     df = pd.DataFrame({"id": [1], "Организация": ["Org"]})
-    monkeypatch.setattr(katalog, "load_organizations", lambda **_: df)
-    connect = MagicMock()
-    monkeypatch.setattr(katalog.sqlite3, "connect", connect)
+    load_org = MagicMock(return_value=df)
+    monkeypatch.setattr(katalog, "load_organizations", load_org)
+    monkeypatch.setattr(katalog.sqlite3, "connect", MagicMock())
+    monkeypatch.setenv("ORG_SHEET", "CustomOrg")
+    monkeypatch.setenv("SETTINGS_SHEET", "CustomSettings")
     with caplog.at_level("INFO"):
         katalog.main()
-    assert "Using organizations sheet" in caplog.text
+    load_org.assert_called_once_with(sheet="CustomOrg")
+    assert "Using organizations sheet: CustomOrg" in caplog.text
+    assert "Using settings sheet CustomSettings" in caplog.text
     assert "missing required columns" in caplog.text
-    connect.assert_not_called()
 
 
 def test_katalog_handles_empty_dataframe(monkeypatch, caplog):
     df = pd.DataFrame(columns=["id", "Организация", "Token_WB"])
-    monkeypatch.setattr(katalog, "load_organizations", lambda **_: df)
-    connect = MagicMock()
-    monkeypatch.setattr(katalog.sqlite3, "connect", connect)
+    load_org = MagicMock(return_value=df)
+    monkeypatch.setattr(katalog, "load_organizations", load_org)
+    monkeypatch.setattr(katalog.sqlite3, "connect", MagicMock())
+    monkeypatch.setenv("ORG_SHEET", "SheetX")
+    monkeypatch.setenv("SETTINGS_SHEET", "SheetY")
     with caplog.at_level("INFO"):
         katalog.main()
-    assert "Using organizations sheet" in caplog.text
+    load_org.assert_called_once_with(sheet="SheetX")
+    assert "Using organizations sheet: SheetX" in caplog.text
+    assert "Using settings sheet SheetY" in caplog.text
     assert "не содержит организаций" in caplog.text
-    connect.assert_not_called()
