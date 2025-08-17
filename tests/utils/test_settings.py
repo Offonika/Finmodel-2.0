@@ -38,14 +38,28 @@ def test_load_organizations_missing_columns(tmp_path):
     assert result.empty
 
 
-def test_load_period_skips_blank_rows(tmp_path):
-    df = pd.DataFrame({"ПериодНачало": ["2023-01-01"], "ПериодКонец": ["2023-01-31"]})
+def test_load_period_ignores_section_headers(tmp_path):
+    df = pd.DataFrame(
+        {
+            "Параметр": ["Период загрузки отчетов", "ПериодНачало", "ПериодКонец"],
+            "Значение": [None, "2023-01-01", "2023-01-31"],
+        }
+    )
     xls = tmp_path / "settings.xlsx"
     with pd.ExcelWriter(xls) as writer:
         df.to_excel(writer, sheet_name="Настройки", index=False, startrow=2)
     start, end = load_period(xls, sheet="Настройки")
     assert start == "2023-01-01"
     assert end == "2023-01-31"
+
+
+def test_load_period_missing_parameters(tmp_path):
+    df = pd.DataFrame({"Параметр": ["Other"], "Значение": ["1"]})
+    xls = tmp_path / "settings.xlsx"
+    with pd.ExcelWriter(xls) as writer:
+        df.to_excel(writer, sheet_name="Настройки", index=False)
+    start, end = load_period(xls, sheet="Настройки")
+    assert start is None and end is None
 
 
 def test_load_period_missing_columns(tmp_path):
@@ -58,7 +72,9 @@ def test_load_period_missing_columns(tmp_path):
 
 
 def test_load_period_custom_sheet(tmp_path, monkeypatch):
-    df = pd.DataFrame({"ПериодНачало": ["2023-01-01"], "ПериодКонец": ["2023-01-31"]})
+    df = pd.DataFrame(
+        {"Параметр": ["ПериодНачало", "ПериодКонец"], "Значение": ["2023-01-01", "2023-01-31"]}
+    )
     xls = tmp_path / "settings.xlsx"
     with pd.ExcelWriter(xls) as writer:
         df.to_excel(writer, sheet_name="Другое", index=False)

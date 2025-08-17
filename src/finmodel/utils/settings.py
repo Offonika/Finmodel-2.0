@@ -126,16 +126,19 @@ def load_period(
     """Load ``ПериодНачало`` and ``ПериодКонец`` from ``Настройки.xlsm``.
 
     The workbook sheet is looked up via :func:`find_setting` using the
-    ``SETTINGS_SHEET`` key and defaults to ``"Настройки"``. The function
-    searches for the first non-empty header row, normalizes the column names and
-    returns the first non-empty values from the ``ПериодНачало`` and
-    ``ПериодКонец`` columns. Empty rows are skipped.
+    ``SETTINGS_SHEET`` key and defaults to ``"Настройки"``. The sheet is
+    expected to contain two columns: ``Параметр`` and ``Значение``. Rows with
+    empty values (section headers) are ignored. The function searches the table
+    for ``ПериодНачало`` and ``ПериодКонец`` parameters and returns their string
+    values. If either parameter is missing, ``(None, None)`` is returned and a
+    warning is logged.
     """
 
     sheet = sheet or find_setting("SETTINGS_SHEET", default="Настройки")
     base_dir = get_project_root()
     xls_path = Path(path or base_dir / "Настройки.xlsm")
     if not xls_path.exists():
+        logger.warning("Workbook %s not found", xls_path)
         return None, None
 
     df = pd.read_excel(xls_path, sheet_name=sheet, header=None)
@@ -150,16 +153,43 @@ def load_period(
     df = df.dropna(how="all").reset_index(drop=True)
     df.columns = df.columns.map(lambda c: str(c).strip())
 
-    def first_value(col_name: str) -> str | None:
-        col = df.get(col_name)
-        if col is None:
-            return None
-        col = col.dropna()
-        if col.empty:
-            return None
-        return str(col.iloc[0]).strip()
+    required = {"параметр": "Параметр", "значение": "Значение"}
+    normalized = {c.lower(): c for c in df.columns}
+    if not all(key in normalized for key in required):
+        logger.warning(
+            "Expected columns %s but found %s in settings workbook %s",
+            list(required.values()),
+            list(df.columns),
+            xls_path,
+        )
+        return None, None
 
-    return first_value("ПериодНачало"), first_value("ПериодКонец")
+    rename_map = {normalized[k]: v for k, v in required.items()}
+    df = df.rename(columns=rename_map)
+    df = df[["Параметр", "Значение"]]
+
+    values: Dict[str, str] = {}
+    for _, row in df.iterrows():
+        key = row.get("Параметр")
+        value = row.get("Значение")
+        if pd.isna(key) or pd.isna(value):
+            continue
+        key = str(key).strip()
+        value = str(value).strip()
+        if not key or not value:
+            continue
+        values[key] = value
+
+    start = values.get("ПериодНачало")
+    end = values.get("ПериодКонец")
+    if start is None or end is None:
+        logger.warning(
+            "Parameters 'ПериодНачало'/'ПериодКонец' not found in %s sheet %s",
+            xls_path,
+            sheet,
+        )
+        return None, None
+    return start, end
 
 
 def load_global_settings(
