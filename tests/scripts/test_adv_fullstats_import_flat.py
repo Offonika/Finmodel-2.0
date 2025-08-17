@@ -16,7 +16,9 @@ from finmodel.scripts import adv_fullstats_import_flat
 def test_main_runs_without_nameerror(monkeypatch):
     df = pd.DataFrame([{"id": "1", "Организация": "Org", "Token_WB": "token"}])
 
-    monkeypatch.setattr("finmodel.utils.settings.load_organizations", lambda sheet=None: df)
+    monkeypatch.setattr(
+        adv_fullstats_import_flat, "load_organizations", lambda sheet=None: df, raising=False
+    )
     monkeypatch.setattr(
         adv_fullstats_import_flat,
         "get_campaign_ids_from_api",
