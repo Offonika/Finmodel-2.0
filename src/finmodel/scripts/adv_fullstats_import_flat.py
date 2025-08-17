@@ -1,20 +1,19 @@
+# -*- coding: utf-8 -*-
+import random
+import sqlite3
+import time
+from datetime import datetime, timedelta
+
+import pandas as pd
+import requests
+
 from finmodel.logger import get_logger, setup_logging
+from finmodel.utils.paths import get_db_path
+from finmodel.utils.settings import find_setting, load_organizations
 
 
 def main() -> None:
     setup_logging()
-    # -*- coding: utf-8 -*-
-    import random
-    import sqlite3
-    import time
-    from datetime import datetime, timedelta
-
-    import pandas as pd
-    import requests
-
-    from finmodel.utils.paths import get_db_path
-    from finmodel.utils.settings import find_setting, load_organizations
-
     logger = get_logger(__name__)
 
     # ---------- Paths ----------
