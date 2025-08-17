@@ -38,12 +38,15 @@ def main() -> None:
         return
 
     # 📌 Подключение к базе
+    conn = None
     try:
         conn = sqlite3.connect(db_path, timeout=10)
         cursor = conn.cursor()
     except sqlite3.OperationalError as e:
         logger.error("Ошибка подключения к базе: %s", e)
-        exit(1)
+        if conn is not None:
+            conn.close()
+        raise SystemExit(1)
 
     # 📌 Пересоздание таблицы с нужными столбцами
     cursor.execute("DROP TABLE IF EXISTS katalog;")
