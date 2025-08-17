@@ -17,7 +17,12 @@ def _run_module(module_name: str) -> None:
     if not hasattr(module, "main"):
         typer.echo(f"Module {module_name} has no main() function.")
         raise typer.Exit(code=1)
-    module.main()
+    old_argv = sys.argv[:]
+    try:
+        sys.argv = [module_name]
+        module.main()
+    finally:
+        sys.argv = old_argv
 
 
 def _create_command(name: str):
@@ -62,9 +67,14 @@ def menu() -> None:
             typer.echo("Invalid choice. Please try again.")
             continue
         try:
-            command_map[command_name].callback()
-            typer.echo("Command completed successfully.")
-            typer.echo(f"Logs available at {LOG_FILE}")
+            old_argv = sys.argv[:]
+            try:
+                sys.argv = [command_name]
+                command_map[command_name].callback()
+                typer.echo("Command completed successfully.")
+                typer.echo(f"Logs available at {LOG_FILE}")
+            finally:
+                sys.argv = old_argv
         except Exception as exc:  # pragma: no cover - defensive
             typer.echo(f"Error: {exc}")
         if not typer.confirm("Return to main menu?", default=True):
