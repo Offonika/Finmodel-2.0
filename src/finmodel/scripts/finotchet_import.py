@@ -94,8 +94,8 @@ def main():
     ]
 
     with sqlite3.connect(db_path) as conn:
-        with conn.cursor() as cursor:
-
+        cursor = conn.cursor()
+        try:
             # --- Пересоздаём таблицу для плоских данных ---
             col_defs = (
                 "org_id INTEGER, "
@@ -135,6 +135,8 @@ def main():
             logger.info("✅ Всего записей обработано и вставлено: %s", total)
             if errors:
                 logger.warning("Были ошибки парсинга: %s записей не обработаны", errors)
+        finally:
+            cursor.close()
 
     logger.info("Готово! Таблица FinOtchetFlat содержит плоские данные для PowerBI/Excel.")
 
