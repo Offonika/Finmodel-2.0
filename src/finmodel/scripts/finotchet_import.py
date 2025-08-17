@@ -1,144 +1,234 @@
-import ast
 import json
 import sqlite3
+import time
 
-from finmodel.logger import get_logger
+import requests
+from requests.adapters import HTTPAdapter, Retry
+
+from finmodel.logger import get_logger, setup_logging
 from finmodel.utils.paths import get_db_path
+from finmodel.utils.settings import (
+    find_setting,
+    load_organizations,
+    load_period,
+    parse_date,
+)
 
+setup_logging()
 logger = get_logger(__name__)
 
 
-def main():
-    # --- Пути к базе ---
+WB_FIELDS = [
+    "realizationreport_id",
+    "date_from",
+    "date_to",
+    "create_dt",
+    "currency_name",
+    "suppliercontract_code",
+    "rrd_id",
+    "gi_id",
+    "dlv_prc",
+    "fix_tariff_date_from",
+    "fix_tariff_date_to",
+    "subject_name",
+    "nm_id",
+    "brand_name",
+    "sa_name",
+    "ts_name",
+    "barcode",
+    "doc_type_name",
+    "quantity",
+    "retail_price",
+    "retail_amount",
+    "sale_percent",
+    "commission_percent",
+    "office_name",
+    "supplier_oper_name",
+    "order_dt",
+    "sale_dt",
+    "rr_dt",
+    "shk_id",
+    "retail_price_withdisc_rub",
+    "delivery_amount",
+    "return_amount",
+    "delivery_rub",
+    "gi_box_type_name",
+    "product_discount_for_report",
+    "supplier_promo",
+    "ppvz_spp_prc",
+    "ppvz_kvw_prc_base",
+    "ppvz_kvw_prc",
+    "sup_rating_prc_up",
+    "is_kgvp_v2",
+    "ppvz_sales_commission",
+    "ppvz_for_pay",
+    "ppvz_reward",
+    "acquiring_fee",
+    "acquiring_percent",
+    "payment_processing",
+    "acquiring_bank",
+    "ppvz_vw",
+    "ppvz_vw_nds",
+    "ppvz_office_name",
+    "ppvz_office_id",
+    "ppvz_supplier_id",
+    "ppvz_supplier_name",
+    "ppvz_inn",
+    "declaration_number",
+    "bonus_type_name",
+    "sticker_id",
+    "site_country",
+    "srv_dbs",
+    "penalty",
+    "additional_payment",
+    "rebill_logistic_cost",
+    "rebill_logistic_org",
+    "storage_fee",
+    "deduction",
+    "acceptance",
+    "assembly_id",
+    "kiz",
+    "srid",
+    "report_type",
+    "is_legal_entity",
+    "trbx_id",
+    "installment_cofinancing_amount",
+    "wibes_wb_discount_percent",
+    "cashback_amount",
+    "cashback_discount",
+]
+
+
+def make_http() -> requests.Session:
+    session = requests.Session()
+    retries = Retry(
+        total=5,
+        read=5,
+        connect=5,
+        backoff_factor=0.5,
+        status_forcelist=(429, 500, 502, 503, 504),
+        allowed_methods=frozenset(["GET"]),
+    )
+    session.mount("https://", HTTPAdapter(max_retries=retries))
+    session.mount("http://", HTTPAdapter(max_retries=retries))
+    return session
+
+
+def main() -> None:
+    PAGE_LIMIT = 100_000
+    REQUEST_TIMEOUT = 60
+    API_SLEEP = 60
+
     db_path = get_db_path()
 
-    # --- Список всех WB-полей ---
-    WB_FIELDS = [
-        "realizationreport_id",
-        "date_from",
-        "date_to",
-        "create_dt",
-        "currency_name",
-        "suppliercontract_code",
-        "rrd_id",
-        "gi_id",
-        "dlv_prc",
-        "fix_tariff_date_from",
-        "fix_tariff_date_to",
-        "subject_name",
-        "nm_id",
-        "brand_name",
-        "sa_name",
-        "ts_name",
-        "barcode",
-        "doc_type_name",
-        "quantity",
-        "retail_price",
-        "retail_amount",
-        "sale_percent",
-        "commission_percent",
-        "office_name",
-        "supplier_oper_name",
-        "order_dt",
-        "sale_dt",
-        "rr_dt",
-        "shk_id",
-        "retail_price_withdisc_rub",
-        "delivery_amount",
-        "return_amount",
-        "delivery_rub",
-        "gi_box_type_name",
-        "product_discount_for_report",
-        "supplier_promo",
-        "ppvz_spp_prc",
-        "ppvz_kvw_prc_base",
-        "ppvz_kvw_prc",
-        "sup_rating_prc_up",
-        "is_kgvp_v2",
-        "ppvz_sales_commission",
-        "ppvz_for_pay",
-        "ppvz_reward",
-        "acquiring_fee",
-        "acquiring_percent",
-        "payment_processing",
-        "acquiring_bank",
-        "ppvz_vw",
-        "ppvz_vw_nds",
-        "ppvz_office_name",
-        "ppvz_office_id",
-        "ppvz_supplier_id",
-        "ppvz_supplier_name",
-        "ppvz_inn",
-        "declaration_number",
-        "bonus_type_name",
-        "sticker_id",
-        "site_country",
-        "srv_dbs",
-        "penalty",
-        "additional_payment",
-        "rebill_logistic_cost",
-        "rebill_logistic_org",
-        "storage_fee",
-        "deduction",
-        "acceptance",
-        "assembly_id",
-        "kiz",
-        "srid",
-        "report_type",
-        "is_legal_entity",
-        "trbx_id",
-        "installment_cofinancing_amount",
-        "wibes_wb_discount_percent",
-        "cashback_amount",
-        "cashback_discount",
-    ]
+    org_sheet = find_setting("ORG_SHEET", default="НастройкиОрганизаций")
+    settings_sheet = find_setting("SETTINGS_SHEET", default="Настройки")
+    logger.info("Using organizations sheet %s", org_sheet)
+    logger.info("Using settings sheet %s", settings_sheet)
 
-    with sqlite3.connect(db_path) as conn:
-        cursor = conn.cursor()
-        try:
-            # --- Пересоздаём таблицу для плоских данных ---
-            col_defs = (
-                "org_id INTEGER, "
-                "Организация TEXT, " + ", ".join(f"{f} TEXT" for f in WB_FIELDS) + ", "
-                "PRIMARY KEY (org_id, rrd_id)"
-            )
-            cursor.execute("DROP TABLE IF EXISTS FinOtchetFlat;")
-            cursor.execute(f"CREATE TABLE FinOtchetFlat ({col_defs});")
+    period_start_raw, period_end_raw = load_period(sheet=settings_sheet)
+    if not period_start_raw or not period_end_raw:
+        logger.error("Settings do not include ПериодНачало/ПериодКонец.")
+        raise SystemExit(1)
+    date_from = parse_date(period_start_raw).strftime("%Y-%m-%d")
+    date_to = parse_date(period_end_raw).strftime("%Y-%m-%d")
+    logger.info("Период загрузки фин. отчёта: %s .. %s", date_from, date_to)
 
-            # --- Загружаем и парсим все строки ---
-            cursor.execute("SELECT org_id, Организация, json_data FROM FinOtchet;")
-            rows = cursor.fetchall()
-            total = 0
-            errors = 0
+    df_orgs = load_organizations(sheet=org_sheet)
+    if df_orgs.empty:
+        logger.error("Настройки.xlsm не содержит организаций с токенами.")
+        raise SystemExit(1)
 
-            for org_id, org_name, json_str in rows:
-                try:
-                    # Сначала пробуем распарсить как JSON, если не получилось — как Python dict через ast.literal_eval
-                    try:
-                        d = json.loads(json_str)
-                    except Exception:
-                        d = ast.literal_eval(json_str)
-                    values = [org_id, org_name] + [
-                        str(d.get(f, "")) if d.get(f) is not None else "" for f in WB_FIELDS
-                    ]
-                    placeholders = ",".join(["?"] * (2 + len(WB_FIELDS)))
-                    cursor.execute(
-                        f"INSERT OR REPLACE INTO FinOtchetFlat VALUES ({placeholders})", values
-                    )
-                    total += 1
-                    if total % 1000 == 0:
-                        logger.info("  %s строк обработано...", total)
-                except Exception as e:
-                    logger.warning("Ошибка парсинга/org_id=%s: %s", org_id, e)
-                    errors += 1
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    cursor.execute("DROP TABLE IF EXISTS FinOtchet;")
+    cursor.execute("CREATE TABLE FinOtchet (org_id INTEGER, Организация TEXT, json_data TEXT);")
+    cursor.execute("DROP TABLE IF EXISTS FinOtchetFlat;")
+    fields_sql = ", ".join([f"{f} TEXT" for f in WB_FIELDS])
+    cursor.execute(
+        f"""
+    CREATE TABLE FinOtchetFlat (
+        org_id INTEGER,
+        Организация TEXT,
+        {fields_sql},
+        PRIMARY KEY (org_id, rrd_id)
+    );
+    """
+    )
+    conn.commit()
 
-            logger.info("✅ Всего записей обработано и вставлено: %s", total)
-            if errors:
-                logger.warning("Были ошибки парсинга: %s записей не обработаны", errors)
-        finally:
-            cursor.close()
+    url = "https://statistics-api.wildberries.ru/api/v5/supplier/reportDetailByPeriod"
+    headers_template = {"Content-Type": "application/json"}
+    http = make_http()
 
-    logger.info("Готово! Таблица FinOtchetFlat содержит плоские данные для PowerBI/Excel.")
+    for _, row in df_orgs.iterrows():
+        org_id = row["id"]
+        org_name = row["Организация"]
+        token = row["Token_WB"]
+        logger.info("→ Организация: %s (ID=%s)", org_name, org_id)
+
+        headers = headers_template.copy()
+        headers["Authorization"] = token
+
+        rrdid = 0
+        total_loaded = 0
+        page = 1
+
+        while True:
+            params = {
+                "dateFrom": date_from,
+                "dateTo": date_to,
+                "rrdid": rrdid,
+                "limit": PAGE_LIMIT,
+            }
+            logger.info("  📤 Запрос page %s, rrdid=%s ...", page, rrdid)
+            try:
+                resp = http.get(url, params=params, headers=headers, timeout=REQUEST_TIMEOUT)
+                if resp.status_code != 200:
+                    logger.warning("  Запрос вернул статус %s: %s", resp.status_code, resp.text)
+                    time.sleep(API_SLEEP)
+                    break
+                data = resp.json()
+            except Exception as e:
+                logger.warning("  Ошибка запроса: %s", e)
+                time.sleep(API_SLEEP)
+                break
+
+            if not data:
+                logger.info("✅ Фин. отчёт загружен для этой организации.")
+                break
+
+            raw_rows = []
+            flat_rows = []
+            for rec in data:
+                raw_rows.append((org_id, org_name, json.dumps(rec, ensure_ascii=False)))
+                flat_rows.append([org_id, org_name] + [str(rec.get(f, "")) for f in WB_FIELDS])
+
+            try:
+                cursor.executemany("INSERT INTO FinOtchet VALUES (?, ?, ?)", raw_rows)
+                placeholders = ",".join(["?"] * (2 + len(WB_FIELDS)))
+                cursor.executemany(
+                    f"INSERT OR REPLACE INTO FinOtchetFlat VALUES ({placeholders})",
+                    flat_rows,
+                )
+                conn.commit()
+            except Exception as e:
+                logger.warning("  Ошибка вставки: %s", e)
+                break
+
+            total_loaded += len(flat_rows)
+            logger.info("  +%s записей (итого: %s)", len(flat_rows), total_loaded)
+
+            if len(flat_rows) < PAGE_LIMIT:
+                logger.info("  ✅ Отчёт по периоду загружен полностью.")
+                break
+
+            rrdid = int(data[-1].get("rrd_id", 0))
+            page += 1
+            time.sleep(API_SLEEP)
+
+    conn.close()
+    logger.info("✅ Все отчёты загружены в таблицы FinOtchet и FinOtchetFlat.")
 
 
 if __name__ == "__main__":
