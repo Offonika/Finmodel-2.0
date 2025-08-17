@@ -6,6 +6,8 @@ from pathlib import Path
 
 import typer
 
+from finmodel.logger import setup_logging
+
 app = typer.Typer(help="Finmodel command line interface")
 
 
@@ -69,4 +71,5 @@ def menu() -> None:
 
 def main() -> None:
     """Entry point for console_scripts."""
+    setup_logging()
     app()
