@@ -123,17 +123,17 @@ def main():
         if not p.exists():
             raise SystemExit(f"SQLite файл не найден: {p}")
 
+        rows: list[sqlite3.Row] = []
         with sqlite3.connect(str(p)) as conn:
             conn.row_factory = sqlite3.Row
-            with conn.cursor() as cur:
-
+            cur = conn.cursor()
+            try:
                 # Если SQL не задан, пробуем два стандартных варианта
                 if not sql:
                     try_sql = [
                         "SELECT DISTINCT nmId AS nmId FROM katalog WHERE nmId IS NOT NULL",
                         "SELECT DISTINCT nm_id AS nmId FROM katalog WHERE nm_id IS NOT NULL",
                     ]
-                    rows = []
                     for q in try_sql:
                         try:
                             rows = cur.execute(q).fetchall()
@@ -149,6 +149,8 @@ def main():
                         )
                 else:
                     rows = cur.execute(sql).fetchall()
+            finally:
+                cur.close()
 
         nmids = [
             str(r["nmId"]).strip()
