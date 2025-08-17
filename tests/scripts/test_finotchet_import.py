@@ -72,9 +72,9 @@ def test_finotchet_inserts_rows_and_stops_on_empty_response():
         load_orgs.assert_called_once_with(sheet="OrgSheet")
         load_period.assert_called_once_with(sheet="SettingsSheet")
 
-        fin_calls = [c for c in mock_cursor.executemany.call_args_list if "FinOtchet" in c.args[0]]
-        assert len(fin_calls) == 2
-        for c in fin_calls:
+        assert mock_cursor.executemany.call_count == 2
+        for c in mock_cursor.executemany.call_args_list:
+            assert c.args[0].startswith("INSERT OR REPLACE INTO FinOtchet ")
             assert c.args[1]
 
         assert mock_get.call_count == 3
