@@ -136,7 +136,7 @@ def main() -> None:
                                 card.get("subjectID"),
                                 card.get("subjectName"),
                                 card.get("brand"),
-                                card.get("vendorCode"),
+                                str(card.get("vendorCode", "")).lower(),
                                 techSize,
                                 sku,
                                 chrtID,

@@ -164,7 +164,7 @@ def main() -> None:
                 for item in data:
                     nm = str(item.get("nmID", ""))
                     imtName = str(item.get("imtName", ""))
-                    vendorCode = str(item.get("vendorCode", ""))
+                    vendorCode = str(item.get("vendorCode", "")).lower()
                     history = item.get("history", []) or []
                     for h in history:
                         rows.append(

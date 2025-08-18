@@ -281,7 +281,7 @@ def main() -> None:
                             str(rec.get("barcode", "")),
                             str(rec.get("subject", "")),
                             str(rec.get("brand", "")),
-                            str(rec.get("vendorCode", "")),
+                            str(rec.get("vendorCode", "")).lower(),
                             str(rec.get("nmId", "")),
                             str(rec.get("volume", "")),
                             str(rec.get("calcType", "")),

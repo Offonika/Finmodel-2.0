@@ -95,6 +95,7 @@ WB_FIELDS = [
     "cashback_amount",
     "cashback_discount",
 ]
+LOWER_FIELDS = {"sa_name"}
 
 
 def make_http() -> requests.Session:
@@ -197,7 +198,16 @@ def main() -> None:
 
             rows = []
             for rec in data:
-                rows.append([org_id, org_name] + [str(rec.get(f, "")) for f in WB_FIELDS])
+                rows.append(
+                    [
+                        org_id,
+                        org_name,
+                    ]
+                    + [
+                        str(rec.get(f, "")).lower() if f in LOWER_FIELDS else str(rec.get(f, ""))
+                        for f in WB_FIELDS
+                    ]
+                )
 
             try:
                 placeholders = ",".join(["?"] * (2 + len(WB_FIELDS)))

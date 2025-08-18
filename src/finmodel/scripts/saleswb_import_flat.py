@@ -83,6 +83,7 @@ def main() -> None:
         "gNumber",
         "srid",
     ]
+    LOWER_FIELDS = {"supplierArticle"}
 
     # --- Connect to DB and create flat table ---
     conn = sqlite3.connect(db_path)
@@ -168,7 +169,13 @@ def main() -> None:
             # Unpack
             rows = []
             for rec in data:
-                flat = [org_id, org_name] + [str(rec.get(f, "")) for f in SALES_FIELDS]
+                flat = [
+                    org_id,
+                    org_name,
+                ] + [
+                    str(rec.get(f, "")).lower() if f in LOWER_FIELDS else str(rec.get(f, ""))
+                    for f in SALES_FIELDS
+                ]
                 rows.append(flat)
             try:
                 placeholders = ",".join(["?"] * (2 + len(SALES_FIELDS)))
