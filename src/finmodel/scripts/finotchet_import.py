@@ -168,7 +168,10 @@ def main() -> None:
         headers = headers_template.copy()
         headers["Authorization"] = token
 
-        rrdid = 0
+        cursor.execute("SELECT MAX(rrd_id) FROM FinOtchet WHERE org_id = ?", (org_id,))
+        rrd_row = cursor.fetchone()
+        rrdid = int(rrd_row[0]) if rrd_row and rrd_row[0] is not None else 0
+        logger.info("  Начальное rrd_id=%s", rrdid)
         total_loaded = 0
         page = 1
 
@@ -222,10 +225,6 @@ def main() -> None:
 
             total_loaded += len(rows)
             logger.info("  +%s записей (итого: %s)", len(rows), total_loaded)
-
-            if len(rows) < PAGE_LIMIT:
-                logger.info("  ✅ Отчёт по периоду загружен полностью.")
-                break
 
             rrdid = int(data[-1].get("rrd_id", 0))
             page += 1
