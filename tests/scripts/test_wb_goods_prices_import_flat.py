@@ -14,7 +14,23 @@ def test_import_prices_inserts_rows(monkeypatch):
     fake_response = SimpleNamespace(
         raise_for_status=lambda: None,
         json=lambda: {
-            "data": {"products": [{"id": 123, "priceU": 1000, "salePriceU": 900, "sale": 10}]}
+            "data": {
+                "products": [
+                    {
+                        "id": 123,
+                        "sizes": [
+                            {
+                                "sizeId": 1,
+                                "price": 1000,
+                                "discountedPrice": 900,
+                                "clubDiscountedPrice": 850,
+                                "discount": 10,
+                                "clubDiscount": 5,
+                            }
+                        ],
+                    }
+                ]
+            }
         },
     )
 
@@ -52,3 +68,4 @@ def test_import_prices_inserts_rows(monkeypatch):
 
     assert inserted == 1
     assert rows[0][0] == "123"
+    assert rows[0][1] == "1"
