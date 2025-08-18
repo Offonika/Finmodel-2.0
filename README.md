@@ -210,19 +210,14 @@ finmodel finotchet_import
 ### wb_goods_prices_import_flat
 
 Скрипт `wb_goods_prices_import_flat` запрашивает цены и скидки для списка
-товаров Wildberries по их `nmId` и записывает результат в таблицу `dbo.spp`
-через ODBC.
-
-Обязательные аргументы:
-
-- `--dsn` — строка подключения ODBC к базе данных.
-- `nmId` — один или несколько артикулов, передаются позиционными
-  параметрами.
+товаров Wildberries по их `nmId` и записывает результат в выбранный формат.
+Источником `nmId` может быть CSV, TXT или SQLite-файл. Результат можно
+сохранить в CSV, SQLite или записать через ODBC.
 
 Пример запуска:
 
 ```bash
-python -m finmodel.scripts.wb_goods_prices_import_flat --dsn "DSN=Finmodel" 12345 67890
+finmodel wb_goods_prices_import_flat --csv nmids.csv --out-odbc "DSN=Finmodel"
 ```
 
 ## Docker
