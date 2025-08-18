@@ -73,6 +73,14 @@ def main():
         return out
 
 
+import argparse
+import csv
+import sqlite3
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Dict, Iterable, List
+
 import requests
 from requests.adapters import HTTPAdapter, Retry
 
@@ -163,7 +171,7 @@ def read_nmids_from_csv(path: str, col: str) -> List[str]:
     with open(path, "r", newline="", encoding="utf-8-sig") as f:
         reader = csv.DictReader(f)
         if col not in (reader.fieldnames or []):
-            raise SystemExit(f"Колонка '{col}' не найдена в CSV. Нашёл: {reader.fieldnames}")
+            raise SystemExit(f"Column '{col}' not found in CSV. Found columns: {reader.fieldnames}")
         for row in reader:
             v = (row.get(col) or "").strip()
             if v:
@@ -184,7 +192,7 @@ def read_nmids_from_txt(path: str) -> List[str]:
 def read_nmids_from_sqlite(db_path: str, sql: str | None) -> List[str]:
     p = Path(db_path)
     if not p.exists():
-        raise SystemExit(f"SQLite файл не найден: {p}")
+        raise SystemExit(f"SQLite file not found: {p}")
 
     rows: list[sqlite3.Row] = []
     with sqlite3.connect(str(p)) as conn:
@@ -206,8 +214,8 @@ def read_nmids_from_sqlite(db_path: str, sql: str | None) -> List[str]:
                         continue
                 if not rows:
                     raise SystemExit(
-                        "Не удалось автоматически найти колонку nmId / nm_id в таблице 'katalog'. "
-                        "Укажи SQL вручную через --sql."
+                        "Could not automatically find nmId / nm_id column in table 'katalog'. "
+                        "Specify SQL manually via --sql."
                     )
             else:
                 rows = cur.execute(sql).fetchall()
@@ -245,7 +253,7 @@ def write_to_db_odbc(rows: List[Dict[str, Any]], dsn: str, table: str = "dbo.spp
     import pyodbc
 
     if not rows:
-        logger.warning("Нет строк для записи в БД — пропускаю.")
+        logger.warning("No rows to write to the database; skipping.")
         return 0
     cn = pyodbc.connect(dsn, autocommit=True)
     cur = cn.cursor()
@@ -278,7 +286,7 @@ def write_to_db_odbc(rows: List[Dict[str, Any]], dsn: str, table: str = "dbo.spp
         inserted += len(chunk)
     cur.close()
     cn.close()
-    logger.info("Записано строк: %s", inserted)
+    logger.info("Rows inserted: %s", inserted)
     return inserted
 
 
@@ -294,8 +302,8 @@ def import_prices(nmids: List[str], dsn: str, http: requests.Session | None = No
 
 def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("nmids", nargs="+", help="Список nmId товаров")
-    parser.add_argument("--dsn", required=True, help="Строка подключения ODBC")
+    parser.add_argument("nmids", nargs="+", help="List of product nmIds")
+    parser.add_argument("--dsn", required=True, help="ODBC connection string")
     return parser.parse_args(argv)
 
 
@@ -308,7 +316,7 @@ def main(argv: List[str] | None = None) -> None:
         db_path: str, rows: List[Dict[str, Any]], table: str = "WBGoodsPricesFlat"
     ) -> int:
         if not rows:
-            logger.warning("Нет строк для записи в SQLite — пропускаю.")
+            logger.warning("No rows to write to SQLite; skipping.")
             return 0
         p = Path(db_path)
         conn = sqlite3.connect(str(p))
@@ -339,28 +347,28 @@ def main(argv: List[str] | None = None) -> None:
         conn.commit()
         cur.close()
         conn.close()
-        logger.info("Записано строк в SQLite: %s", len(rows))
+        logger.info("Rows inserted into SQLite: %s", len(rows))
         return len(rows)
 
     parser = argparse.ArgumentParser()
     src_group = parser.add_mutually_exclusive_group(required=True)
-    src_group.add_argument("--csv", help="CSV-файл с колонкой nmId")
-    src_group.add_argument("--txt", help="TXT-файл со списком nmId")
-    src_group.add_argument("--sqlite", help="SQLite-файл с nmId")
-    parser.add_argument("--col", default="nmId", help="Имя колонки для CSV")
-    parser.add_argument("--sql", help="SQL-запрос для извлечения nmId из SQLite")
+    src_group.add_argument("--csv", help="CSV file containing nmId column")
+    src_group.add_argument("--txt", help="TXT file with nmId list")
+    src_group.add_argument("--sqlite", help="SQLite file with nmIds")
+    parser.add_argument("--col", default="nmId", help="Column name in CSV")
+    parser.add_argument("--sql", help="SQL query to extract nmIds from SQLite")
 
-    parser.add_argument("--out-csv", help="Путь к выходному CSV")
-    parser.add_argument("--out-sqlite", help="SQLite для записи результатов")
-    parser.add_argument("--out-odbc", help="ODBC DSN для записи результатов")
+    parser.add_argument("--out-csv", help="Path to output CSV")
+    parser.add_argument("--out-sqlite", help="SQLite file for storing results")
+    parser.add_argument("--out-odbc", help="ODBC DSN for storing results")
     parser.add_argument(
-        "--odbc-table", default="WBGoodsPricesFlat", help="Таблица для записи через ODBC"
+        "--odbc-table", default="WBGoodsPricesFlat", help="Table name for ODBC output"
     )
 
     args = parser.parse_args()
 
     if not (args.out_csv or args.out_sqlite or args.out_odbc):
-        parser.error("Нужно указать хотя бы один вывод: --out-csv, --out-sqlite или --out-odbc")
+        parser.error("At least one output is required: --out-csv, --out-sqlite, or --out-odbc")
 
     try:
         if args.csv:
@@ -370,9 +378,9 @@ def main(argv: List[str] | None = None) -> None:
         else:
             nmids = read_nmids_from_sqlite(args.sqlite, args.sql)
         if not nmids:
-            logger.error("Не найдено ни одного nmId")
+            logger.error("No nmIds found")
             raise SystemExit(1)
-        logger.info("Загружено nmId: %s", len(nmids))
+        logger.info("Loaded nmIds: %s", len(nmids))
 
         http = make_http()
         rows_out: List[Dict[str, Any]] = []
@@ -380,7 +388,7 @@ def main(argv: List[str] | None = None) -> None:
             try:
                 batch = fetch_batch(http, chunk)
             except Exception:
-                logger.exception("Ошибка при запросе батча nmId: %s", chunk)
+                logger.exception("Error fetching nmId batch: %s", chunk)
                 raise SystemExit(1)
             for row in batch:
                 rows_out.append(calc_metrics(row))
@@ -392,11 +400,11 @@ def main(argv: List[str] | None = None) -> None:
             write_to_sqlite(args.out_sqlite, rows_out)
         if args.out_odbc:
             write_to_db_odbc(rows_out, args.out_odbc, table=args.odbc_table)
-        logger.info("Обработано строк: %s", len(rows_out))
+        logger.info("Rows processed: %s", len(rows_out))
     except SystemExit:
         raise
     except Exception:
-        logger.exception("Необработанная ошибка")
+        logger.exception("Unhandled error")
         raise SystemExit(1)
 
 
