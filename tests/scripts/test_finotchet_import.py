@@ -65,6 +65,7 @@ def test_finotchet_inserts_rows_and_stops_on_empty_response():
         page_size = 100_000
         page1 = [{"rrd_id": i} for i in range(1, page_size + 1)]
         page2 = [{"rrd_id": i} for i in range(page_size + 1, 2 * page_size + 1)]
+        mock_cursor.fetchone.return_value = (len(page1) + len(page2),)
         mock_get.side_effect = [make_resp(page1), make_resp(page2), make_resp([])]
 
         finotchet_import.main()
@@ -78,3 +79,7 @@ def test_finotchet_inserts_rows_and_stops_on_empty_response():
             assert c.args[1]
 
         assert mock_get.call_count == 3
+        assert any(
+            c.args[0] == "SELECT COUNT(*) FROM FinOtchet"
+            for c in mock_cursor.execute.call_args_list
+        )
