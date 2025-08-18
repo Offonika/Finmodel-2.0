@@ -66,6 +66,8 @@ finmodel dump_schema --db finmodel.db --output schema.sql
    finmodel saleswb_import_flat
    # или явно через модуль
    python -m finmodel.cli saleswb_import_flat
+   # полная перезагрузка (удаляет существующие продажи)
+   finmodel saleswb_import_flat --full-reload
    ```
    Старый формат `python -m finmodel.scripts.*` по-прежнему работает для совместимости.
 

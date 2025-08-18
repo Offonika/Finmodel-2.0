@@ -1,4 +1,4 @@
-import json
+import argparse
 import sqlite3
 import time
 
@@ -12,9 +12,20 @@ from finmodel.utils.settings import find_setting, load_organizations, load_perio
 logger = get_logger(__name__)
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--full-reload",
+        action="store_true",
+        help="Delete existing SalesWBFlat rows before import.",
+    )
+    return parser.parse_args()
+
+
 def main() -> None:
     setup_logging()
-    # Максимальный размер страницы, заявленный в документации WB API
+    args = parse_args()
+    # Maximum page size stated in WB API documentation
     PAGE_LIMIT = 100_000
     REQUEST_TIMEOUT = 60
 
@@ -26,14 +37,14 @@ def main() -> None:
     logger.info("Using organizations sheet %s", org_sheet)
     logger.info("Using settings sheet %s", settings_sheet)
 
-    # --- Получаем период загрузки ---
+    # --- Load period ---
     period_start_raw, period_end_raw = load_period(sheet=settings_sheet)
     if not period_start_raw or not period_end_raw:
         logger.error("Settings do not include ПериодНачало/ПериодКонец.")
         raise SystemExit(1)
     period_start = parse_date(period_start_raw).strftime("%Y-%m-%dT%H:%M:%S")
     period_end = parse_date(period_end_raw).strftime("%Y-%m-%dT%H:%M:%S")
-    logger.info("Период загрузки продаж: %s .. %s", period_start, period_end)
+    logger.info("Sales load period: %s .. %s", period_start, period_end)
 
     # --- Load organizations ---
     df_orgs = load_organizations(sheet=org_sheet)
@@ -73,14 +84,13 @@ def main() -> None:
         "srid",
     ]
 
-    # --- Подключение к базе и создание плоской таблицы ---
+    # --- Connect to DB and create flat table ---
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     fields_sql = ", ".join([f"{f} TEXT" for f in SALES_FIELDS])
-    cursor.execute("DROP TABLE IF EXISTS SalesWBFlat;")
     cursor.execute(
         f"""
-    CREATE TABLE SalesWBFlat (
+    CREATE TABLE IF NOT EXISTS SalesWBFlat (
         org_id INTEGER,
         Организация TEXT,
         {fields_sql},
@@ -88,6 +98,9 @@ def main() -> None:
     );
     """
     )
+    if args.full_reload:
+        logger.info("Full reload requested: clearing SalesWBFlat table")
+        cursor.execute("DELETE FROM SalesWBFlat")
     conn.commit()
 
     # --- HTTP session ---
@@ -105,7 +118,7 @@ def main() -> None:
         s.mount("http://", HTTPAdapter(max_retries=retries))
         return s
 
-    # --- API запрос ---
+    # --- API requests ---
     url = "https://statistics-api.wildberries.ru/api/v1/supplier/sales"
     headers_template = {"Content-Type": "application/json"}
 
@@ -120,7 +133,16 @@ def main() -> None:
         headers = headers_template.copy()
         headers["Authorization"] = token
 
-        date_from = period_start
+        if args.full_reload:
+            date_from = period_start
+        else:
+            cursor.execute(
+                "SELECT MAX(lastChangeDate) FROM SalesWBFlat WHERE org_id = ?",
+                (org_id,),
+            )
+            last_date = cursor.fetchone()[0]
+            date_from = last_date if last_date else period_start
+
         total_loaded = 0
         page = 1
 
@@ -143,7 +165,7 @@ def main() -> None:
                 logger.info("✅ Все продажи загружены для этой организации.")
                 break
 
-            # Распаковка
+            # Unpack
             rows = []
             for rec in data:
                 flat = [org_id, org_name] + [str(rec.get(f, "")) for f in SALES_FIELDS]
@@ -169,10 +191,10 @@ def main() -> None:
                 logger.info("  ✅ Продажи по периоду загружены полностью.")
                 break
 
-            # pagination: следующий dateFrom = lastChangeDate последней строки
+            # pagination: next dateFrom = lastChangeDate of last row
             date_from = data[-1].get("lastChangeDate")
             page += 1
-            time.sleep(3)  # WB лимит: 1 запрос в минуту, но можно чуть чаще
+            time.sleep(3)  # WB limit: 1 request per minute, but slightly faster is OK
 
     conn.close()
     logger.info("✅ Все продажи загружены и распарсены в таблицу SalesWBFlat (без дублей).")
