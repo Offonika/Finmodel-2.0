@@ -1,4 +1,4 @@
-"""Fetch Wildberries goods prices and store them in a database."""
+"""Fetch Wildberries goods prices and store them in CSV/SQLite/ODBC."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ import sqlite3
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Iterable, List
+from typing import Any, Iterable, List, Dict, Optional, Tuple
 
 import requests
 from requests.adapters import HTTPAdapter, Retry
@@ -23,12 +23,14 @@ SLEEP_BETWEEN_BATCHES_SEC = 0.4
 logger = get_logger(__name__)
 
 
+# ───────────────────────────── helpers ───────────────────────────── #
+
 def iter_chunks(lst: List[str], size: int) -> Iterable[List[str]]:
     for i in range(0, len(lst), size):
         yield lst[i : i + size]
 
 
-def make_http(api_key: str | None = None) -> requests.Session:
+def make_http(api_key: Optional[str] = None) -> requests.Session:
     s = requests.Session()
     retries = Retry(
         total=5,
@@ -38,7 +40,9 @@ def make_http(api_key: str | None = None) -> requests.Session:
         status_forcelist=(429, 500, 502, 503, 504),
         allowed_methods=frozenset(["GET"]),
     )
-    s.headers.update({"Accept": "application/json", "User-Agent": "WB-SPP-Fetcher/1.0 (+PowerBI)"})
+    s.headers.update(
+        {"Accept": "application/json", "User-Agent": "WB-SPP-Fetcher/1.0 (+PowerBI)"}
+    )
     if api_key:
         s.headers["Authorization"] = api_key
     s.mount("https://", HTTPAdapter(max_retries=retries))
@@ -47,15 +51,20 @@ def make_http(api_key: str | None = None) -> requests.Session:
 
 
 def fetch_batch(
-    http: requests.Session, limit: int, offset: int, filter_nm_id: str | None = None
+    http: requests.Session, limit: int, offset: int, filter_nm_id: Optional[str] = None
 ) -> List[Dict[str, Any]]:
+    """Возвращает список словарей в унифицированном формате:
+    nmId, sizeID, priceU, salePriceU, sale
+    """
     params: Dict[str, Any] = {"limit": limit, "offset": offset}
     if filter_nm_id:
         params["filterNmID"] = filter_nm_id
+
     r = http.get(WB_ENDPOINT, params=params, timeout=TIMEOUT)
     r.raise_for_status()
-    payload = r.json()
-    data = (payload or {}).get("data", {})
+    payload: Dict[str, Any] = r.json() or {}
+    data: Any = payload.get("data", {})
+    products: List[Dict[str, Any]]
     if isinstance(data, dict):
         products = data.get("products") or data.get("listGoods") or data.get("goods") or []
     else:
@@ -63,12 +72,12 @@ def fetch_batch(
 
     out: List[Dict[str, Any]] = []
     for p in products:
-        nm_id = (
-            str(p.get("nmId") or p.get("nmID") or p.get("id"))
-            if (p.get("nmId") or p.get("nmID") or p.get("id")) is not None
-            else None
-        )
-        sizes = p.get("sizes") or []
+        nm_id_raw: Any = p.get("nmId") or p.get("nmID") or p.get("id")
+        nm_id: Optional[str] = str(nm_id_raw) if nm_id_raw is not None else None
+        sizes_any: Any = p.get("sizes") or []
+        sizes: List[Dict[str, Any]] = sizes_any if isinstance(sizes_any, list) else []
+
+        # Если размеров нет — берём цену с уровня товара (если она там есть)
         if not sizes:
             out.append(
                 {
@@ -84,65 +93,63 @@ def fetch_batch(
                 }
             )
             continue
+
         for s in sizes:
+            # поля могут быть на уровне size, а могут наследоваться от товара
+            priceU: Optional[int] = s.get("priceU") if isinstance(s.get("priceU"), int) else (
+                p.get("priceU") if isinstance(p.get("priceU"), int) else None
+            )
+            salePriceU: Optional[int] = (
+                s.get("salePriceU") if isinstance(s.get("salePriceU"), int) else (
+                    p.get("salePriceU") if isinstance(p.get("salePriceU"), int) else None
+                )
+            )
+            sale_val: Any = s.get("sale")
+            if sale_val is None:
+                sale_val = p.get("sale")
+            sale: Optional[float] = float(sale_val) if isinstance(sale_val, (int, float)) else None
+
+            size_raw: Any = s.get("sizeId") or s.get("sizeID") or s.get("id")
+            size_id: Optional[str] = str(size_raw) if size_raw is not None else None
+
             out.append(
                 {
                     "nmId": nm_id,
-                    "sizeID": (
-                        str(s.get("sizeId") or s.get("sizeID") or s.get("id"))
-                        if (s.get("sizeId") or s.get("sizeID") or s.get("id")) is not None
-                        else None
-                    ),
-                    "priceU": (
-                        s.get("priceU")
-                        if isinstance(s.get("priceU"), int)
-                        else p.get("priceU") if isinstance(p.get("priceU"), int) else None
-                    ),
-                    "salePriceU": (
-                        s.get("salePriceU")
-                        if isinstance(s.get("salePriceU"), int)
-                        else p.get("salePriceU") if isinstance(p.get("salePriceU"), int) else None
-                    ),
-                    "sale": (
-                        float(
-                            s.get("sale")
-                            if isinstance(s.get("sale"), (int, float))
-                            else p.get("sale")
-                        )
-                        if isinstance(
-                            s.get("sale") if s.get("sale") is not None else p.get("sale"),
-                            (int, float),
-                        )
-                        else None
-                    ),
+                    "sizeID": size_id,
+                    "priceU": priceU,
+                    "salePriceU": salePriceU,
+                    "sale": sale,
                 }
             )
     return out
 
 
 def calc_metrics(row: Dict[str, Any]) -> Dict[str, Any]:
-    price_u = row.get("priceU")
-    sale_price_u = row.get("salePriceU")
-    sale = row.get("sale")
+    priceU: Optional[int] = row.get("priceU")
+    salePriceU: Optional[int] = row.get("salePriceU")
+    sale: Optional[float] = row.get("sale")
 
-    discount_total_pct = (
-        (1 - (sale_price_u / price_u)) * 100.0
-        if price_u is not None and sale_price_u is not None and price_u != 0
+    discount_total_pct: Optional[float] = (
+        (1 - (salePriceU / priceU)) * 100.0
+        if priceU is not None and salePriceU is not None and priceU != 0
         else None
     )
-    spp_pct_approx = (
+    # Примерная оценка «СПП» как разница между полной скидкой и публичной скидкой WB
+    spp_pct_approx: Optional[float] = (
         discount_total_pct - sale if discount_total_pct is not None and sale is not None else None
     )
 
     return {
         **row,
-        "price_rub": (price_u / 100.0) if isinstance(price_u, int) else None,
-        "salePrice_rub": (sale_price_u / 100.0) if isinstance(sale_price_u, int) else None,
+        "price_rub": (priceU / 100.0) if isinstance(priceU, int) else None,
+        "salePrice_rub": (salePriceU / 100.0) if isinstance(salePriceU, int) else None,
         "discount_total_pct": discount_total_pct,
         "spp_pct_approx": spp_pct_approx,
         "updated_at_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     }
 
+
+# ───────────────────────────── IO: sources ───────────────────────────── #
 
 def read_nmids_from_csv(path: str, col: str) -> List[str]:
     nmids: List[str] = []
@@ -167,12 +174,12 @@ def read_nmids_from_txt(path: str) -> List[str]:
     return nmids
 
 
-def read_nmids_from_sqlite(db_path: str, sql: str | None) -> List[str]:
+def read_nmids_from_sqlite(db_path: str, sql: Optional[str]) -> List[str]:
     p = Path(db_path)
     if not p.exists():
         raise SystemExit(f"SQLite файл не найден: {p}")
 
-    rows: list[sqlite3.Row] = []
+    rows: List[sqlite3.Row] = []
     with sqlite3.connect(str(p)) as conn:
         conn.row_factory = sqlite3.Row
         cur = conn.cursor()
@@ -208,43 +215,57 @@ def read_nmids_from_sqlite(db_path: str, sql: str | None) -> List[str]:
     return nmids
 
 
+# ───────────────────────────── IO: sinks ───────────────────────────── #
+
+CSV_FIELDS: List[str] = [
+    "nmId",
+    "sizeID",
+    "priceU",
+    "salePriceU",
+    "sale",
+    "price_rub",
+    "salePrice_rub",
+    "discount_total_pct",
+    "spp_pct_approx",
+    "updated_at_utc",
+]
+
+
 def write_csv(path: str, rows: List[Dict[str, Any]]) -> None:
-    fields = [
-        "nmId",
-        "sizeID",
-        "priceU",
-        "salePriceU",
-        "sale",
-        "price_rub",
-        "salePrice_rub",
-        "discount_total_pct",
-        "spp_pct_approx",
-        "updated_at_utc",
-    ]
     with open(path, "w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=fields)
+        w = csv.DictWriter(f, fieldnames=CSV_FIELDS)
         w.writeheader()
         for r in rows:
-            w.writerow({k: r.get(k) for k in fields})
+            w.writerow({k: r.get(k) for k in CSV_FIELDS})
 
 
-def write_to_db_odbc(rows: List[Dict[str, Any]], dsn: str, table: str = "dbo.spp") -> int:
-    import pyodbc
-
+def write_to_sqlite(db_path: str, rows: List[Dict[str, Any]], table: str = "spp") -> int:
     if not rows:
-        logger.warning("Нет строк для записи в БД — пропускаю.")
+        logger.warning("Нет строк для записи в SQLite — пропускаю.")
         return 0
-    cn = pyodbc.connect(dsn, autocommit=True)
-    cur = cn.cursor()
-    cur.execute(f"DELETE FROM {table}")
-    sql = f"""
-        INSERT INTO {table}
-        (nmId, sizeID, priceU, salePriceU, sale, price_rub, salePrice_rub, discount_total_pct, spp_pct_approx, updated_at_utc)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """
-    batch = []
-    for r in rows:
-        batch.append(
+
+    with sqlite3.connect(db_path) as conn:
+        cur = conn.cursor()
+        # Создаём таблицу, если отсутствует
+        cur.execute(
+            f"""
+            CREATE TABLE IF NOT EXISTS {table} (
+                nmId TEXT,
+                sizeID TEXT,
+                priceU INTEGER,
+                salePriceU INTEGER,
+                sale REAL,
+                price_rub REAL,
+                salePrice_rub REAL,
+                discount_total_pct REAL,
+                spp_pct_approx REAL,
+                updated_at_utc TEXT,
+                PRIMARY KEY (nmId, sizeID)
+            )
+            """
+        )
+        # Подготовим данные к вставке (позиционные параметры)
+        data: List[Tuple[Any, ...]] = [
             (
                 r.get("nmId"),
                 r.get("sizeID"),
@@ -255,83 +276,95 @@ def write_to_db_odbc(rows: List[Dict[str, Any]], dsn: str, table: str = "dbo.spp
                 r.get("salePrice_rub"),
                 r.get("discount_total_pct"),
                 r.get("spp_pct_approx"),
-                (r.get("updated_at_utc") or "").replace("Z", "").split("+")[0],
+                r.get("updated_at_utc"),
             )
+            for r in rows
+        ]
+        cur.executemany(
+            f"""
+            INSERT OR REPLACE INTO {table}
+            (nmId, sizeID, priceU, salePriceU, sale, price_rub, salePrice_rub, discount_total_pct, spp_pct_approx, updated_at_utc)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            data,
         )
-    cur.fast_executemany = True
-    step = 1000
-    inserted = 0
-    for i in range(0, len(batch), step):
-        chunk = batch[i : i + step]
-        cur.executemany(sql, chunk)
-        inserted += len(chunk)
-    cur.close()
-    cn.close()
-    logger.info("Записано строк: %s", inserted)
-    return inserted
-
-
-def write_to_sqlite(
-    db_path: str, rows: List[Dict[str, Any]], table: str = "WBGoodsPricesFlat"
-) -> int:
-    if not rows:
-        logger.warning("Нет строк для записи в SQLite — пропускаю.")
-        return 0
-    p = Path(db_path)
-    conn = sqlite3.connect(str(p))
-    cur = conn.cursor()
-    cur.execute(
-        f"""
-        CREATE TABLE IF NOT EXISTS {table} (
-            nmId TEXT NOT NULL,
-            sizeID TEXT NOT NULL,
-            priceU INTEGER,
-            salePriceU INTEGER,
-            sale REAL,
-            price_rub REAL,
-            salePrice_rub REAL,
-            discount_total_pct REAL,
-            spp_pct_approx REAL,
-            updated_at_utc TEXT,
-            PRIMARY KEY (nmId, sizeID)
-        )
-        """
-    )
-    cur.execute(f"DELETE FROM {table}")
-    cur.executemany(
-        f"""
-        INSERT INTO {table}
-        (nmId, sizeID, priceU, salePriceU, sale, price_rub, salePrice_rub, discount_total_pct, spp_pct_approx, updated_at_utc)
-        VALUES (:nmId, :sizeID, :priceU, :salePriceU, :sale, :price_rub, :salePrice_rub, :discount_total_pct, :spp_pct_approx, :updated_at_utc)
-        """,
-        rows,
-    )
-    conn.commit()
-    cur.close()
-    conn.close()
+        conn.commit()
     logger.info("Записано строк в SQLite: %s", len(rows))
     return len(rows)
 
 
+def write_to_db_odbc(rows: List[Dict[str, Any]], dsn: str, table: str = "dbo.WBGoodsPricesFlat") -> int:
+    """Вставка через ODBC (например, в MS SQL Server).
+    Таблица должна существовать с колонками, соответствующими CSV_FIELDS.
+    """
+    import pyodbc  # type: ignore
+
+    if not rows:
+        logger.warning("Нет строк для записи в ODBC — пропускаю.")
+        return 0
+
+    cn = pyodbc.connect(dsn, autocommit=False)
+    try:
+        cur = cn.cursor()
+        # Очистить таблицу (если нужна полная замена — по желанию можно убрать)
+        cur.execute(f"TRUNCATE TABLE {table}")
+        # Подготовка данных
+        data: List[Tuple[Any, ...]] = [
+            (
+                r.get("nmId"),
+                r.get("sizeID"),
+                r.get("priceU"),
+                r.get("salePriceU"),
+                r.get("sale"),
+                r.get("price_rub"),
+                r.get("salePrice_rub"),
+                r.get("discount_total_pct"),
+                r.get("spp_pct_approx"),
+                r.get("updated_at_utc"),
+            )
+            for r in rows
+        ]
+        # Вставка
+        cur.fast_executemany = True
+        cur.executemany(
+            f"""
+            INSERT INTO {table}
+            (nmId, sizeID, priceU, salePriceU, sale, price_rub, salePrice_rub, discount_total_pct, spp_pct_approx, updated_at_utc)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            data,
+        )
+        cn.commit()
+    finally:
+        cn.close()
+
+    logger.info("Записано строк в ODBC: %s", len(rows))
+    return len(rows)
+
+
+# ───────────────────────────── pipeline ───────────────────────────── #
+
 def import_prices(
     nmids: List[str],
-    dsn: str,
-    api_key: str | None = None,
-    http: requests.Session | None = None,
+    dsn: Optional[str],
+    api_key: Optional[str] = None,
+    http: Optional[requests.Session] = None,
 ) -> int:
     http = http or make_http(api_key)
     all_rows: List[Dict[str, Any]] = []
     for i, chunk in enumerate(iter_chunks(nmids, CHUNK_SIZE)):
         filter_nm = ";".join(chunk)
-        raw_rows = fetch_batch(
-            http, limit=len(chunk), offset=i * CHUNK_SIZE, filter_nm_id=filter_nm
-        )
+        raw_rows = fetch_batch(http, limit=len(chunk), offset=i * CHUNK_SIZE, filter_nm_id=filter_nm)
         all_rows.extend(calc_metrics(r) for r in raw_rows)
         time.sleep(SLEEP_BETWEEN_BATCHES_SEC)
-    return write_to_db_odbc(all_rows, dsn)
+
+    written: int = 0
+    if dsn:
+        written = write_to_db_odbc(all_rows, dsn)
+    return written
 
 
-def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
+def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     src_group = parser.add_mutually_exclusive_group(required=True)
     src_group.add_argument("--csv", help="CSV-файл с колонкой nmId")
@@ -345,7 +378,7 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--out-sqlite", help="SQLite для записи результатов")
     parser.add_argument("--out-odbc", help="ODBC DSN для записи результатов")
     parser.add_argument(
-        "--odbc-table", default="WBGoodsPricesFlat", help="Таблица для записи через ODBC"
+        "--odbc-table", default="dbo.WBGoodsPricesFlat", help="Таблица для записи через ODBC"
     )
 
     args = parser.parse_args(argv)
@@ -354,7 +387,7 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
     return args
 
 
-def main(argv: List[str] | None = None) -> None:
+def main(argv: Optional[List[str]] = None) -> None:
     setup_logging()
     args = parse_args(argv)
 
@@ -365,6 +398,7 @@ def main(argv: List[str] | None = None) -> None:
             nmids = read_nmids_from_txt(args.txt)
         else:
             nmids = read_nmids_from_sqlite(args.sqlite, args.sql)
+
         if not nmids:
             logger.error("Не найдено ни одного nmId")
             raise SystemExit(1)
@@ -394,6 +428,7 @@ def main(argv: List[str] | None = None) -> None:
             write_to_sqlite(args.out_sqlite, rows_out)
         if args.out_odbc:
             write_to_db_odbc(rows_out, args.out_odbc, table=args.odbc_table)
+
         logger.info("Обработано строк: %s", len(rows_out))
     except SystemExit:
         raise
