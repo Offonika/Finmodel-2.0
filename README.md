@@ -222,6 +222,16 @@ docker run --rm -e FINMODEL_SCRIPT=finmodel.scripts.orderswb_import_flat \
   finmodel
 ```
 
+Флаг `--full-reload` перезагружает данные заново, начиная с `ПериодНачало`:
+
+```bash
+docker run --rm -e FINMODEL_SCRIPT=finmodel.scripts.orderswb_import_flat \
+  -v $(pwd)/config.yml:/app/config.yml \
+  -v $(pwd)/Настройки.xlsm:/app/Настройки.xlsm \
+  -v $(pwd)/finmodel.db:/app/finmodel.db \
+  finmodel -- --full-reload
+```
+
 Чтобы использовать PostgreSQL вместо SQLite, поднимите приложение через `docker-compose`:
 
 ```yaml

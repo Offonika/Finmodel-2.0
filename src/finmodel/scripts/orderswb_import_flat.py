@@ -1,4 +1,4 @@
-import json
+import argparse
 import sqlite3
 import time
 
@@ -12,7 +12,15 @@ from finmodel.utils.settings import find_setting, load_organizations, load_perio
 logger = get_logger(__name__)
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--full-reload",
+        action="store_true",
+        help="Reload data from period start ignoring existing rows",
+    )
+    args = parser.parse_args(argv)
+
     setup_logging()
     # Максимальный размер страницы, заявленный в документации WB API
     PAGE_LIMIT = 100_000
@@ -76,10 +84,9 @@ def main() -> None:
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     fields_sql = ", ".join([f"{f} TEXT" for f in ORDER_FIELDS])
-    cursor.execute("DROP TABLE IF EXISTS OrdersWBFlat;")
     cursor.execute(
         f"""
-    CREATE TABLE OrdersWBFlat (
+    CREATE TABLE IF NOT EXISTS OrdersWBFlat (
         org_id INTEGER,
         Организация TEXT,
         {fields_sql},
@@ -119,7 +126,35 @@ def main() -> None:
         headers = headers_template.copy()
         headers["Authorization"] = token
 
-        date_from = period_start
+        if args.full_reload:
+            cursor.execute(
+                "DELETE FROM OrdersWBFlat WHERE org_id = ? AND lastChangeDate >= ?",
+                (org_id, period_start),
+            )
+            conn.commit()
+            date_from = period_start
+        else:
+            cursor.execute(
+                """
+                SELECT lastChangeDate, srid FROM OrdersWBFlat
+                WHERE org_id = ?
+                ORDER BY lastChangeDate DESC, srid DESC
+                LIMIT 1
+                """,
+                (org_id,),
+            )
+            last_row = cursor.fetchone()
+            if last_row:
+                last_change, last_srid = last_row
+                logger.info(
+                    "  Last known record lastChangeDate=%s srid=%s",
+                    last_change,
+                    last_srid,
+                )
+                date_from = max(last_change, period_start)
+            else:
+                date_from = period_start
+
         total_loaded = 0
         page = 1
 
