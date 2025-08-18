@@ -221,6 +221,13 @@ def main() -> None:
             page += 1
             time.sleep(API_SLEEP)
 
+    cursor.execute("SELECT COUNT(*) FROM FinOtchet")
+    total_rows = cursor.fetchone()[0] or 0
+    if total_rows == 0:
+        logger.warning("FinOtchet table contains no rows after import.")
+    else:
+        logger.info("Всего строк в FinOtchet: %s", total_rows)
+
     conn.close()
     logger.info("✅ Все отчёты загружены в таблицу FinOtchet.")
 
