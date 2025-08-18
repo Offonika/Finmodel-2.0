@@ -63,42 +63,83 @@ def fetch_batch(
 
     out: List[Dict[str, Any]] = []
     for p in products:
-        out.append(
-            {
-                "nmId": (
-                    str(p.get("nmId") or p.get("nmID") or p.get("id"))
-                    if (p.get("nmId") or p.get("nmID") or p.get("id")) is not None
-                    else None
-                ),
-                "priceU": p.get("priceU") if isinstance(p.get("priceU"), int) else None,
-                "salePriceU": (
-                    p.get("salePriceU") if isinstance(p.get("salePriceU"), int) else None
-                ),
-                "sale": float(p.get("sale")) if isinstance(p.get("sale"), (int, float)) else None,
-            }
+        nm_id = (
+            str(p.get("nmId") or p.get("nmID") or p.get("id"))
+            if (p.get("nmId") or p.get("nmID") or p.get("id")) is not None
+            else None
         )
+        sizes = p.get("sizes") or []
+        if not isinstance(sizes, list):
+            sizes = []
+        for s in sizes:
+            out.append(
+                {
+                    "nmId": nm_id,
+                    "sizeID": (
+                        str(s.get("sizeId") or s.get("sizeID") or s.get("id"))
+                        if (s.get("sizeId") or s.get("sizeID") or s.get("id")) is not None
+                        else None
+                    ),
+                    "price": s.get("price") if isinstance(s.get("price"), int) else None,
+                    "discountedPrice": (
+                        s.get("discountedPrice")
+                        if isinstance(s.get("discountedPrice"), int)
+                        else None
+                    ),
+                    "clubDiscountedPrice": (
+                        s.get("clubDiscountedPrice")
+                        if isinstance(s.get("clubDiscountedPrice"), int)
+                        else None
+                    ),
+                    "discount": (
+                        float(s.get("discount"))
+                        if isinstance(s.get("discount"), (int, float))
+                        else None
+                    ),
+                    "clubDiscount": (
+                        float(s.get("clubDiscount"))
+                        if isinstance(s.get("clubDiscount"), (int, float))
+                        else None
+                    ),
+                }
+            )
     return out
 
 
 def calc_metrics(row: Dict[str, Any]) -> Dict[str, Any]:
-    price_u = row.get("priceU")
-    sale_price_u = row.get("salePriceU")
-    sale = row.get("sale")
+    price = row.get("price")
+    discounted_price = row.get("discountedPrice")
+    club_discounted_price = row.get("clubDiscountedPrice")
+    discount = row.get("discount")
+    club_discount = row.get("clubDiscount")
 
     discount_total_pct = (
-        (1 - (sale_price_u / price_u)) * 100.0
-        if price_u is not None and sale_price_u is not None and price_u != 0
+        (1 - (discounted_price / price)) * 100.0
+        if price is not None and discounted_price is not None and price != 0
+        else None
+    )
+    club_discount_total_pct = (
+        (1 - (club_discounted_price / price)) * 100.0
+        if price is not None and club_discounted_price is not None and price != 0
         else None
     )
     spp_pct_approx = (
-        discount_total_pct - sale if discount_total_pct is not None and sale is not None else None
+        discount_total_pct - discount - club_discount
+        if discount_total_pct is not None and discount is not None and club_discount is not None
+        else None
     )
 
     return {
         **row,
-        "price_rub": (price_u / 100.0) if isinstance(price_u, int) else None,
-        "salePrice_rub": (sale_price_u / 100.0) if isinstance(sale_price_u, int) else None,
+        "price_rub": (price / 100.0) if isinstance(price, int) else None,
+        "discountedPrice_rub": (
+            (discounted_price / 100.0) if isinstance(discounted_price, int) else None
+        ),
+        "clubDiscountedPrice_rub": (
+            (club_discounted_price / 100.0) if isinstance(club_discounted_price, int) else None
+        ),
         "discount_total_pct": discount_total_pct,
+        "club_discount_total_pct": club_discount_total_pct,
         "spp_pct_approx": spp_pct_approx,
         "updated_at_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     }
@@ -171,12 +212,17 @@ def read_nmids_from_sqlite(db_path: str, sql: str | None) -> List[str]:
 def write_csv(path: str, rows: List[Dict[str, Any]]) -> None:
     fields = [
         "nmId",
-        "priceU",
-        "salePriceU",
-        "sale",
+        "sizeID",
+        "price",
+        "discountedPrice",
+        "clubDiscountedPrice",
+        "discount",
+        "clubDiscount",
         "price_rub",
-        "salePrice_rub",
+        "discountedPrice_rub",
+        "clubDiscountedPrice_rub",
         "discount_total_pct",
+        "club_discount_total_pct",
         "spp_pct_approx",
         "updated_at_utc",
     ]
@@ -197,20 +243,25 @@ def write_to_db_odbc(rows: List[Dict[str, Any]], dsn: str, table: str = "dbo.spp
     cur = cn.cursor()
     sql = f"""
         INSERT INTO {table}
-        (nmId, priceU, salePriceU, sale, price_rub, salePrice_rub, discount_total_pct, spp_pct_approx, updated_at_utc)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (nmId, sizeID, price, discountedPrice, clubDiscountedPrice, discount, clubDiscount, price_rub, discountedPrice_rub, clubDiscountedPrice_rub, discount_total_pct, club_discount_total_pct, spp_pct_approx, updated_at_utc)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
     batch = []
     for r in rows:
         batch.append(
             (
                 r.get("nmId"),
-                r.get("priceU"),
-                r.get("salePriceU"),
-                r.get("sale"),
+                r.get("sizeID"),
+                r.get("price"),
+                r.get("discountedPrice"),
+                r.get("clubDiscountedPrice"),
+                r.get("discount"),
+                r.get("clubDiscount"),
                 r.get("price_rub"),
-                r.get("salePrice_rub"),
+                r.get("discountedPrice_rub"),
+                r.get("clubDiscountedPrice_rub"),
                 r.get("discount_total_pct"),
+                r.get("club_discount_total_pct"),
                 r.get("spp_pct_approx"),
                 (r.get("updated_at_utc") or "").replace("Z", "").split("+")[0],
             )
@@ -240,23 +291,29 @@ def write_to_sqlite(
     cur.execute(
         f"""
         CREATE TABLE IF NOT EXISTS {table} (
-            nmId TEXT PRIMARY KEY,
-            priceU INTEGER,
-            salePriceU INTEGER,
-            sale REAL,
+            nmId TEXT,
+            sizeID TEXT,
+            price INTEGER,
+            discountedPrice INTEGER,
+            clubDiscountedPrice INTEGER,
+            discount REAL,
+            clubDiscount REAL,
             price_rub REAL,
-            salePrice_rub REAL,
+            discountedPrice_rub REAL,
+            clubDiscountedPrice_rub REAL,
             discount_total_pct REAL,
+            club_discount_total_pct REAL,
             spp_pct_approx REAL,
-            updated_at_utc TEXT
+            updated_at_utc TEXT,
+            PRIMARY KEY (nmId, sizeID)
         )
         """
     )
     cur.executemany(
         f"""
         INSERT OR REPLACE INTO {table}
-        (nmId, priceU, salePriceU, sale, price_rub, salePrice_rub, discount_total_pct, spp_pct_approx, updated_at_utc)
-        VALUES (:nmId, :priceU, :salePriceU, :sale, :price_rub, :salePrice_rub, :discount_total_pct, :spp_pct_approx, :updated_at_utc)
+        (nmId, sizeID, price, discountedPrice, clubDiscountedPrice, discount, clubDiscount, price_rub, discountedPrice_rub, clubDiscountedPrice_rub, discount_total_pct, club_discount_total_pct, spp_pct_approx, updated_at_utc)
+        VALUES (:nmId, :sizeID, :price, :discountedPrice, :clubDiscountedPrice, :discount, :clubDiscount, :price_rub, :discountedPrice_rub, :clubDiscountedPrice_rub, :discount_total_pct, :club_discount_total_pct, :spp_pct_approx, :updated_at_utc)
         """,
         rows,
     )
