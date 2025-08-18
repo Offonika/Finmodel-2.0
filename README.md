@@ -78,7 +78,7 @@ finmodel dump_schema --db finmodel.db --output schema.sql
    Скрипт `wb_goods_prices_import_flat` загружает текущие цены товаров по списку `nmId`:
 
    ```bash
-   finmodel wb_goods_prices_import_flat --csv nmids.csv --out-sqlite finmodel.db
+   finmodel wb_goods_prices_import_flat --csv nmids.csv --out-sqlite finmodel.db --api-key YOUR_KEY
    ```
 
 ## Конфигурация
@@ -217,7 +217,7 @@ finmodel finotchet_import
 Пример запуска:
 
 ```bash
-finmodel wb_goods_prices_import_flat --csv nmids.csv --out-odbc "DSN=Finmodel"
+finmodel wb_goods_prices_import_flat --csv nmids.csv --out-odbc "DSN=Finmodel" --api-key YOUR_KEY
 ```
 
 ## Docker

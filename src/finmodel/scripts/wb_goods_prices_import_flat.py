@@ -15,7 +15,7 @@ from requests.adapters import HTTPAdapter, Retry
 
 from finmodel.logger import get_logger, setup_logging
 
-WB_ENDPOINT = "https://card.wb.ru/cards/v1/detail"
+WB_ENDPOINT = "https://discounts-prices-api.wildberries.ru/api/v2/list/goods/filter"
 CHUNK_SIZE = 100
 TIMEOUT = 15
 SLEEP_BETWEEN_BATCHES_SEC = 0.4
@@ -28,7 +28,7 @@ def iter_chunks(lst: List[str], size: int) -> Iterable[List[str]]:
         yield lst[i : i + size]
 
 
-def make_http() -> requests.Session:
+def make_http(api_key: str | None = None) -> requests.Session:
     s = requests.Session()
     retries = Retry(
         total=5,
@@ -39,26 +39,37 @@ def make_http() -> requests.Session:
         allowed_methods=frozenset(["GET"]),
     )
     s.headers.update({"Accept": "application/json", "User-Agent": "WB-SPP-Fetcher/1.0 (+PowerBI)"})
+    if api_key:
+        s.headers["Authorization"] = api_key
     s.mount("https://", HTTPAdapter(max_retries=retries))
     s.mount("http://", HTTPAdapter(max_retries=retries))
     return s
 
 
-def fetch_batch(http: requests.Session, ids: List[str]) -> List[Dict[str, Any]]:
-    ids_clean = [str(x).strip() for x in ids if str(x).strip()]
-    if not ids_clean:
-        return []
-    params = {"appType": 1, "curr": "rub", "dest": -1257786, "nm": ";".join(ids_clean)}
+def fetch_batch(
+    http: requests.Session, limit: int, offset: int, filter_nm_id: str | None = None
+) -> List[Dict[str, Any]]:
+    params: Dict[str, Any] = {"limit": limit, "offset": offset}
+    if filter_nm_id:
+        params["filterNmID"] = filter_nm_id
     r = http.get(WB_ENDPOINT, params=params, timeout=TIMEOUT)
     r.raise_for_status()
     payload = r.json()
-    products = (payload or {}).get("data", {}).get("products", []) or []
+    data = (payload or {}).get("data", {})
+    if isinstance(data, dict):
+        products = data.get("products") or data.get("listGoods") or data.get("goods") or []
+    else:
+        products = data or []
 
     out: List[Dict[str, Any]] = []
     for p in products:
         out.append(
             {
-                "nmId": str(p.get("id")) if p.get("id") is not None else None,
+                "nmId": (
+                    str(p.get("nmId") or p.get("nmID") or p.get("id"))
+                    if (p.get("nmId") or p.get("nmID") or p.get("id")) is not None
+                    else None
+                ),
                 "priceU": p.get("priceU") if isinstance(p.get("priceU"), int) else None,
                 "salePriceU": (
                     p.get("salePriceU") if isinstance(p.get("salePriceU"), int) else None
@@ -256,11 +267,19 @@ def write_to_sqlite(
     return len(rows)
 
 
-def import_prices(nmids: List[str], dsn: str, http: requests.Session | None = None) -> int:
-    http = http or make_http()
+def import_prices(
+    nmids: List[str],
+    dsn: str,
+    api_key: str | None = None,
+    http: requests.Session | None = None,
+) -> int:
+    http = http or make_http(api_key)
     all_rows: List[Dict[str, Any]] = []
-    for chunk in iter_chunks(nmids, CHUNK_SIZE):
-        raw_rows = fetch_batch(http, chunk)
+    for i, chunk in enumerate(iter_chunks(nmids, CHUNK_SIZE)):
+        filter_nm = ";".join(chunk)
+        raw_rows = fetch_batch(
+            http, limit=len(chunk), offset=i * CHUNK_SIZE, filter_nm_id=filter_nm
+        )
         all_rows.extend(calc_metrics(r) for r in raw_rows)
         time.sleep(SLEEP_BETWEEN_BATCHES_SEC)
     return write_to_db_odbc(all_rows, dsn)
@@ -274,6 +293,7 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
     src_group.add_argument("--sqlite", help="SQLite-файл с nmId")
     parser.add_argument("--col", default="nmId", help="Имя колонки для CSV")
     parser.add_argument("--sql", help="SQL-запрос для извлечения nmId из SQLite")
+    parser.add_argument("--api-key", help="API key for Authorization header")
 
     parser.add_argument("--out-csv", help="Путь к выходному CSV")
     parser.add_argument("--out-sqlite", help="SQLite для записи результатов")
@@ -304,11 +324,17 @@ def main(argv: List[str] | None = None) -> None:
             raise SystemExit(1)
         logger.info("Загружено nmId: %s", len(nmids))
 
-        http = make_http()
+        http = make_http(args.api_key)
         rows_out: List[Dict[str, Any]] = []
-        for chunk in iter_chunks(nmids, CHUNK_SIZE):
+        for i, chunk in enumerate(iter_chunks(nmids, CHUNK_SIZE)):
+            filter_nm = ";".join(chunk)
             try:
-                batch = fetch_batch(http, chunk)
+                batch = fetch_batch(
+                    http,
+                    limit=len(chunk),
+                    offset=i * CHUNK_SIZE,
+                    filter_nm_id=filter_nm,
+                )
             except Exception:
                 logger.exception("Ошибка при запросе батча nmId: %s", chunk)
                 raise SystemExit(1)

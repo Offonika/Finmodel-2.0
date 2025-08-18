@@ -17,7 +17,14 @@ def test_import_prices_inserts_rows(monkeypatch):
             "data": {"products": [{"id": 123, "priceU": 1000, "salePriceU": 900, "sale": 10}]}
         },
     )
-    fake_session = SimpleNamespace(get=lambda url, params, timeout: fake_response)
+
+    def fake_get(url, params, timeout):
+        assert params["limit"] == 1
+        assert params["offset"] == 0
+        assert params["filterNmID"] == "123"
+        return fake_response
+
+    fake_session = SimpleNamespace(get=fake_get)
 
     rows: list[tuple] = []
 
