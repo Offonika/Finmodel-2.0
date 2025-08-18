@@ -73,6 +73,9 @@ def main():
         return out
 
 
+import time
+from datetime import datetime, timezone
+
 import requests
 from requests.adapters import HTTPAdapter, Retry
 
@@ -139,13 +142,11 @@ def calc_metrics(row: Dict[str, Any]) -> Dict[str, Any]:
 
     discount_total_pct = (
         (1 - (sale_price_u / price_u)) * 100.0
-        if price_u and sale_price_u and price_u != 0
+        if price_u is not None and sale_price_u is not None and price_u != 0
         else None
     )
     spp_pct_approx = (
-        (discount_total_pct - sale)
-        if (discount_total_pct is not None and sale is not None)
-        else None
+        discount_total_pct - sale if discount_total_pct is not None and sale is not None else None
     )
 
     return {
