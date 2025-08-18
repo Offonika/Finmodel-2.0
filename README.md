@@ -75,7 +75,9 @@ finmodel dump_schema --db finmodel.db --output schema.sql
    ```
    Старый формат `python -m finmodel.scripts.*` по-прежнему работает для совместимости.
 
-   Скрипт `wb_goods_prices_import_flat` загружает текущие цены товаров по списку `nmId`:
+   Скрипт `wb_goods_prices_import_flat` загружает текущие цены товаров по списку `nmId`.
+   Для каждого `nmId` выгружаются цены по всем размерам (`sizeID`), и таблица
+   полностью очищается перед загрузкой новых данных:
 
    ```bash
    finmodel wb_goods_prices_import_flat --csv nmids.csv --out-sqlite finmodel.db --api-key YOUR_KEY
@@ -211,8 +213,10 @@ finmodel finotchet_import
 
 Скрипт `wb_goods_prices_import_flat` запрашивает цены и скидки для списка
 товаров Wildberries по их `nmId` и записывает результат в выбранный формат.
-Источником `nmId` может быть CSV, TXT или SQLite-файл. Результат можно
-сохранить в CSV, SQLite или записать через ODBC.
+Для каждого товара сохраняются цены по всем размерам (`sizeID`). Перед
+записью таблица очищается, что гарантирует полное обновление данных. Источником
+`nmId` может быть CSV, TXT или SQLite-файл. Результат можно сохранить в CSV,
+SQLite или записать через ODBC.
 
 Пример запуска:
 

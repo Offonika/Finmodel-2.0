@@ -31,6 +31,9 @@ def test_import_prices_inserts_rows(monkeypatch):
     class FakeCursor:
         fast_executemany = False
 
+        def execute(self, sql):
+            pass
+
         def executemany(self, sql, batch):
             rows.extend(batch)
 

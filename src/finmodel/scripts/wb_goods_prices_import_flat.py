@@ -63,20 +63,60 @@ def fetch_batch(
 
     out: List[Dict[str, Any]] = []
     for p in products:
-        out.append(
-            {
-                "nmId": (
-                    str(p.get("nmId") or p.get("nmID") or p.get("id"))
-                    if (p.get("nmId") or p.get("nmID") or p.get("id")) is not None
-                    else None
-                ),
-                "priceU": p.get("priceU") if isinstance(p.get("priceU"), int) else None,
-                "salePriceU": (
-                    p.get("salePriceU") if isinstance(p.get("salePriceU"), int) else None
-                ),
-                "sale": float(p.get("sale")) if isinstance(p.get("sale"), (int, float)) else None,
-            }
+        nm_id = (
+            str(p.get("nmId") or p.get("nmID") or p.get("id"))
+            if (p.get("nmId") or p.get("nmID") or p.get("id")) is not None
+            else None
         )
+        sizes = p.get("sizes") or []
+        if not sizes:
+            out.append(
+                {
+                    "nmId": nm_id,
+                    "sizeID": None,
+                    "priceU": p.get("priceU") if isinstance(p.get("priceU"), int) else None,
+                    "salePriceU": (
+                        p.get("salePriceU") if isinstance(p.get("salePriceU"), int) else None
+                    ),
+                    "sale": (
+                        float(p.get("sale")) if isinstance(p.get("sale"), (int, float)) else None
+                    ),
+                }
+            )
+            continue
+        for s in sizes:
+            out.append(
+                {
+                    "nmId": nm_id,
+                    "sizeID": (
+                        str(s.get("sizeId") or s.get("sizeID") or s.get("id"))
+                        if (s.get("sizeId") or s.get("sizeID") or s.get("id")) is not None
+                        else None
+                    ),
+                    "priceU": (
+                        s.get("priceU")
+                        if isinstance(s.get("priceU"), int)
+                        else p.get("priceU") if isinstance(p.get("priceU"), int) else None
+                    ),
+                    "salePriceU": (
+                        s.get("salePriceU")
+                        if isinstance(s.get("salePriceU"), int)
+                        else p.get("salePriceU") if isinstance(p.get("salePriceU"), int) else None
+                    ),
+                    "sale": (
+                        float(
+                            s.get("sale")
+                            if isinstance(s.get("sale"), (int, float))
+                            else p.get("sale")
+                        )
+                        if isinstance(
+                            s.get("sale") if s.get("sale") is not None else p.get("sale"),
+                            (int, float),
+                        )
+                        else None
+                    ),
+                }
+            )
     return out
 
 
@@ -171,6 +211,7 @@ def read_nmids_from_sqlite(db_path: str, sql: str | None) -> List[str]:
 def write_csv(path: str, rows: List[Dict[str, Any]]) -> None:
     fields = [
         "nmId",
+        "sizeID",
         "priceU",
         "salePriceU",
         "sale",
@@ -195,16 +236,18 @@ def write_to_db_odbc(rows: List[Dict[str, Any]], dsn: str, table: str = "dbo.spp
         return 0
     cn = pyodbc.connect(dsn, autocommit=True)
     cur = cn.cursor()
+    cur.execute(f"DELETE FROM {table}")
     sql = f"""
         INSERT INTO {table}
-        (nmId, priceU, salePriceU, sale, price_rub, salePrice_rub, discount_total_pct, spp_pct_approx, updated_at_utc)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (nmId, sizeID, priceU, salePriceU, sale, price_rub, salePrice_rub, discount_total_pct, spp_pct_approx, updated_at_utc)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
     batch = []
     for r in rows:
         batch.append(
             (
                 r.get("nmId"),
+                r.get("sizeID"),
                 r.get("priceU"),
                 r.get("salePriceU"),
                 r.get("sale"),
@@ -240,7 +283,8 @@ def write_to_sqlite(
     cur.execute(
         f"""
         CREATE TABLE IF NOT EXISTS {table} (
-            nmId TEXT PRIMARY KEY,
+            nmId TEXT NOT NULL,
+            sizeID TEXT NOT NULL,
             priceU INTEGER,
             salePriceU INTEGER,
             sale REAL,
@@ -248,15 +292,17 @@ def write_to_sqlite(
             salePrice_rub REAL,
             discount_total_pct REAL,
             spp_pct_approx REAL,
-            updated_at_utc TEXT
+            updated_at_utc TEXT,
+            PRIMARY KEY (nmId, sizeID)
         )
         """
     )
+    cur.execute(f"DELETE FROM {table}")
     cur.executemany(
         f"""
-        INSERT OR REPLACE INTO {table}
-        (nmId, priceU, salePriceU, sale, price_rub, salePrice_rub, discount_total_pct, spp_pct_approx, updated_at_utc)
-        VALUES (:nmId, :priceU, :salePriceU, :sale, :price_rub, :salePrice_rub, :discount_total_pct, :spp_pct_approx, :updated_at_utc)
+        INSERT INTO {table}
+        (nmId, sizeID, priceU, salePriceU, sale, price_rub, salePrice_rub, discount_total_pct, spp_pct_approx, updated_at_utc)
+        VALUES (:nmId, :sizeID, :priceU, :salePriceU, :sale, :price_rub, :salePrice_rub, :discount_total_pct, :spp_pct_approx, :updated_at_utc)
         """,
         rows,
     )
