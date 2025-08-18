@@ -2,76 +2,13 @@
 
 from __future__ import annotations
 
-
-def main():
-    setup_logging()
-    # file: wb_spp_fetch.py  (v2)
-    import argparse
-    import csv
-    import sqlite3
-    import sys
-    import time
-    from datetime import datetime, timezone
-    from pathlib import Path
-    from typing import Any, Dict, Iterable, List
-
-    import requests
-    from requests.adapters import HTTPAdapter, Retry
-
-    WB_ENDPOINT = "https://card.wb.ru/cards/v1/detail"
-    CHUNK_SIZE = 100
-    TIMEOUT = 15
-    SLEEP_BETWEEN_BATCHES_SEC = 0.4
-
-    def iter_chunks(lst: List[str], size: int) -> Iterable[List[str]]:
-        for i in range(0, len(lst), size):
-            yield lst[i : i + size]
-
-    def make_http() -> requests.Session:
-        s = requests.Session()
-        retries = Retry(
-            total=5,
-            read=5,
-            connect=5,
-            backoff_factor=0.5,
-            status_forcelist=(429, 500, 502, 503, 504),
-            allowed_methods=frozenset(["GET"]),
-        )
-        s.headers.update(
-            {"Accept": "application/json", "User-Agent": "WB-SPP-Fetcher/1.0 (+PowerBI)"}
-        )
-        s.mount("https://", HTTPAdapter(max_retries=retries))
-        s.mount("http://", HTTPAdapter(max_retries=retries))
-        return s
-
-    logger = get_logger(__name__)
-
-    def fetch_batch(http: requests.Session, ids: List[str]) -> List[Dict[str, Any]]:
-        ids_clean = [str(x).strip() for x in ids if str(x).strip()]
-        if not ids_clean:
-            return []
-        params = {"appType": 1, "curr": "rub", "dest": -1257786, "nm": ";".join(ids_clean)}
-        r = http.get(WB_ENDPOINT, params=params, timeout=TIMEOUT)
-        r.raise_for_status()
-        payload = r.json()
-        products = (payload or {}).get("data", {}).get("products", []) or []
-
-        out = []
-        for p in products:
-            out.append(
-                {
-                    "nmId": str(p.get("id")) if p.get("id") is not None else None,
-                    "priceU": p.get("priceU") if isinstance(p.get("priceU"), int) else None,
-                    "salePriceU": (
-                        p.get("salePriceU") if isinstance(p.get("salePriceU"), int) else None
-                    ),
-                    "sale": (
-                        float(p.get("sale")) if isinstance(p.get("sale"), (int, float)) else None
-                    ),
-                }
-            )
-        return out
-
+import argparse
+import csv
+import sqlite3
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Dict, Iterable, List
 
 import requests
 from requests.adapters import HTTPAdapter, Retry
@@ -282,6 +219,45 @@ def write_to_db_odbc(rows: List[Dict[str, Any]], dsn: str, table: str = "dbo.spp
     return inserted
 
 
+def write_to_sqlite(
+    db_path: str, rows: List[Dict[str, Any]], table: str = "WBGoodsPricesFlat"
+) -> int:
+    if not rows:
+        logger.warning("Нет строк для записи в SQLite — пропускаю.")
+        return 0
+    p = Path(db_path)
+    conn = sqlite3.connect(str(p))
+    cur = conn.cursor()
+    cur.execute(
+        f"""
+        CREATE TABLE IF NOT EXISTS {table} (
+            nmId TEXT PRIMARY KEY,
+            priceU INTEGER,
+            salePriceU INTEGER,
+            sale REAL,
+            price_rub REAL,
+            salePrice_rub REAL,
+            discount_total_pct REAL,
+            spp_pct_approx REAL,
+            updated_at_utc TEXT
+        )
+        """
+    )
+    cur.executemany(
+        f"""
+        INSERT OR REPLACE INTO {table}
+        (nmId, priceU, salePriceU, sale, price_rub, salePrice_rub, discount_total_pct, spp_pct_approx, updated_at_utc)
+        VALUES (:nmId, :priceU, :salePriceU, :sale, :price_rub, :salePrice_rub, :discount_total_pct, :spp_pct_approx, :updated_at_utc)
+        """,
+        rows,
+    )
+    conn.commit()
+    cur.close()
+    conn.close()
+    logger.info("Записано строк в SQLite: %s", len(rows))
+    return len(rows)
+
+
 def import_prices(nmids: List[str], dsn: str, http: requests.Session | None = None) -> int:
     http = http or make_http()
     all_rows: List[Dict[str, Any]] = []
@@ -303,44 +279,6 @@ def main(argv: List[str] | None = None) -> None:
     setup_logging()
     args = parse_args(argv)
     import_prices(args.nmids, dsn=args.dsn)
-
-    def write_to_sqlite(
-        db_path: str, rows: List[Dict[str, Any]], table: str = "WBGoodsPricesFlat"
-    ) -> int:
-        if not rows:
-            logger.warning("Нет строк для записи в SQLite — пропускаю.")
-            return 0
-        p = Path(db_path)
-        conn = sqlite3.connect(str(p))
-        cur = conn.cursor()
-        cur.execute(
-            f"""
-            CREATE TABLE IF NOT EXISTS {table} (
-                nmId TEXT PRIMARY KEY,
-                priceU INTEGER,
-                salePriceU INTEGER,
-                sale REAL,
-                price_rub REAL,
-                salePrice_rub REAL,
-                discount_total_pct REAL,
-                spp_pct_approx REAL,
-                updated_at_utc TEXT
-            )
-            """
-        )
-        cur.executemany(
-            f"""
-            INSERT OR REPLACE INTO {table}
-            (nmId, priceU, salePriceU, sale, price_rub, salePrice_rub, discount_total_pct, spp_pct_approx, updated_at_utc)
-            VALUES (:nmId, :priceU, :salePriceU, :sale, :price_rub, :salePrice_rub, :discount_total_pct, :spp_pct_approx, :updated_at_utc)
-            """,
-            rows,
-        )
-        conn.commit()
-        cur.close()
-        conn.close()
-        logger.info("Записано строк в SQLite: %s", len(rows))
-        return len(rows)
 
     parser = argparse.ArgumentParser()
     src_group = parser.add_mutually_exclusive_group(required=True)
