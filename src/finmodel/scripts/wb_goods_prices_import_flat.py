@@ -4,9 +4,8 @@ from finmodel.logger import get_logger, setup_logging
 def main():
     setup_logging()
     # file: wb_spp_fetch.py  (v2)
+    import argparse
     import csv
-
-    # --- NEW: sqlite ---
     import sqlite3
     import sys
     import time
@@ -218,6 +217,101 @@ def main():
         cn.close()
         logger.info("Записано строк: %s", inserted)
         return inserted
+
+    def write_to_sqlite(
+        db_path: str, rows: List[Dict[str, Any]], table: str = "WBGoodsPricesFlat"
+    ) -> int:
+        if not rows:
+            logger.warning("Нет строк для записи в SQLite — пропускаю.")
+            return 0
+        p = Path(db_path)
+        conn = sqlite3.connect(str(p))
+        cur = conn.cursor()
+        cur.execute(
+            f"""
+            CREATE TABLE IF NOT EXISTS {table} (
+                nmId TEXT PRIMARY KEY,
+                priceU INTEGER,
+                salePriceU INTEGER,
+                sale REAL,
+                price_rub REAL,
+                salePrice_rub REAL,
+                discount_total_pct REAL,
+                spp_pct_approx REAL,
+                updated_at_utc TEXT
+            )
+            """
+        )
+        cur.executemany(
+            f"""
+            INSERT OR REPLACE INTO {table}
+            (nmId, priceU, salePriceU, sale, price_rub, salePrice_rub, discount_total_pct, spp_pct_approx, updated_at_utc)
+            VALUES (:nmId, :priceU, :salePriceU, :sale, :price_rub, :salePrice_rub, :discount_total_pct, :spp_pct_approx, :updated_at_utc)
+            """,
+            rows,
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+        logger.info("Записано строк в SQLite: %s", len(rows))
+        return len(rows)
+
+    parser = argparse.ArgumentParser()
+    src_group = parser.add_mutually_exclusive_group(required=True)
+    src_group.add_argument("--csv", help="CSV-файл с колонкой nmId")
+    src_group.add_argument("--txt", help="TXT-файл со списком nmId")
+    src_group.add_argument("--sqlite", help="SQLite-файл с nmId")
+    parser.add_argument("--col", default="nmId", help="Имя колонки для CSV")
+    parser.add_argument("--sql", help="SQL-запрос для извлечения nmId из SQLite")
+
+    parser.add_argument("--out-csv", help="Путь к выходному CSV")
+    parser.add_argument("--out-sqlite", help="SQLite для записи результатов")
+    parser.add_argument("--out-odbc", help="ODBC DSN для записи результатов")
+    parser.add_argument(
+        "--odbc-table", default="WBGoodsPricesFlat", help="Таблица для записи через ODBC"
+    )
+
+    args = parser.parse_args()
+
+    if not (args.out_csv or args.out_sqlite or args.out_odbc):
+        parser.error("Нужно указать хотя бы один вывод: --out-csv, --out-sqlite или --out-odbc")
+
+    try:
+        if args.csv:
+            nmids = read_nmids_from_csv(args.csv, args.col)
+        elif args.txt:
+            nmids = read_nmids_from_txt(args.txt)
+        else:
+            nmids = read_nmids_from_sqlite(args.sqlite, args.sql)
+        if not nmids:
+            logger.error("Не найдено ни одного nmId")
+            raise SystemExit(1)
+        logger.info("Загружено nmId: %s", len(nmids))
+
+        http = make_http()
+        rows_out: List[Dict[str, Any]] = []
+        for chunk in iter_chunks(nmids, CHUNK_SIZE):
+            try:
+                batch = fetch_batch(http, chunk)
+            except Exception:
+                logger.exception("Ошибка при запросе батча nmId: %s", chunk)
+                raise SystemExit(1)
+            for row in batch:
+                rows_out.append(calc_metrics(row))
+            time.sleep(SLEEP_BETWEEN_BATCHES_SEC)
+
+        if args.out_csv:
+            write_csv(args.out_csv, rows_out)
+        if args.out_sqlite:
+            write_to_sqlite(args.out_sqlite, rows_out)
+        if args.out_odbc:
+            write_to_db_odbc(rows_out, args.out_odbc, table=args.odbc_table)
+        logger.info("Обработано строк: %s", len(rows_out))
+    except SystemExit:
+        raise
+    except Exception:
+        logger.exception("Необработанная ошибка")
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

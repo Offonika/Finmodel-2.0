@@ -71,6 +71,12 @@ finmodel dump_schema --db finmodel.db --output schema.sql
    ```
    Старый формат `python -m finmodel.scripts.*` по-прежнему работает для совместимости.
 
+   Скрипт `wb_goods_prices_import_flat` загружает текущие цены товаров по списку `nmId`:
+
+   ```bash
+   finmodel wb_goods_prices_import_flat --csv nmids.csv --out-sqlite finmodel.db
+   ```
+
 ## Конфигурация
 
 `config.yml` хранит технические параметры, которые редко меняются и удобно
