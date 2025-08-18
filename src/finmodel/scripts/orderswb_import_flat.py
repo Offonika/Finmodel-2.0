@@ -19,7 +19,7 @@ def main(argv: list[str] | None = None) -> None:
         action="store_true",
         help="Reload data from period start ignoring existing rows",
     )
-    args = parser.parse_args(argv)
+    args = parser.parse_args(argv or [])
 
     setup_logging()
     # Максимальный размер страницы, заявленный в документации WB API
@@ -79,6 +79,7 @@ def main(argv: list[str] | None = None) -> None:
         "gNumber",
         "srid",
     ]
+    LOWER_FIELDS = {"supplierArticle"}
 
     # --- Подключение к базе и создание плоской таблицы ---
     conn = sqlite3.connect(db_path)
@@ -180,7 +181,13 @@ def main(argv: list[str] | None = None) -> None:
             # Распаковка
             rows = []
             for rec in data:
-                flat = [org_id, org_name] + [str(rec.get(f, "")) for f in ORDER_FIELDS]
+                flat = [
+                    org_id,
+                    org_name,
+                ] + [
+                    str(rec.get(f, "")).lower() if f in LOWER_FIELDS else str(rec.get(f, ""))
+                    for f in ORDER_FIELDS
+                ]
                 rows.append(flat)
             try:
                 placeholders = ",".join(["?"] * (2 + len(ORDER_FIELDS)))

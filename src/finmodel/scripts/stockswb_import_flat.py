@@ -61,6 +61,7 @@ def main() -> None:
         "isRealization",
         "SCCode",
     ]
+    LOWER_FIELDS = {"supplierArticle"}
 
     # --- Пересоздание таблицы ---
     conn = sqlite3.connect(db_path)
@@ -135,7 +136,13 @@ def main() -> None:
             # Распаковка
             rows = []
             for rec in data:
-                flat = [org_id, org_name] + [str(rec.get(f, "")) for f in STOCKS_FIELDS]
+                flat = [
+                    org_id,
+                    org_name,
+                ] + [
+                    str(rec.get(f, "")).lower() if f in LOWER_FIELDS else str(rec.get(f, ""))
+                    for f in STOCKS_FIELDS
+                ]
                 rows.append(flat)
             try:
                 placeholders = ",".join(["?"] * (2 + len(STOCKS_FIELDS)))
