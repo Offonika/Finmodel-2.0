@@ -10,9 +10,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List
 
-import time
-from datetime import datetime, timezone
-
 import requests
 from requests.adapters import HTTPAdapter, Retry
 
@@ -271,17 +268,6 @@ def import_prices(nmids: List[str], dsn: str, http: requests.Session | None = No
 
 def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("nmids", nargs="+", help="Список nmId товаров")
-    parser.add_argument("--dsn", required=True, help="Строка подключения ODBC")
-    return parser.parse_args(argv)
-
-
-def main(argv: List[str] | None = None) -> None:
-    setup_logging()
-    args = parse_args(argv)
-    import_prices(args.nmids, dsn=args.dsn)
-
-    parser = argparse.ArgumentParser()
     src_group = parser.add_mutually_exclusive_group(required=True)
     src_group.add_argument("--csv", help="CSV-файл с колонкой nmId")
     src_group.add_argument("--txt", help="TXT-файл со списком nmId")
@@ -296,10 +282,15 @@ def main(argv: List[str] | None = None) -> None:
         "--odbc-table", default="WBGoodsPricesFlat", help="Таблица для записи через ODBC"
     )
 
-    args = parser.parse_args()
-
+    args = parser.parse_args(argv)
     if not (args.out_csv or args.out_sqlite or args.out_odbc):
         parser.error("Нужно указать хотя бы один вывод: --out-csv, --out-sqlite или --out-odbc")
+    return args
+
+
+def main(argv: List[str] | None = None) -> None:
+    setup_logging()
+    args = parse_args(argv)
 
     try:
         if args.csv:
