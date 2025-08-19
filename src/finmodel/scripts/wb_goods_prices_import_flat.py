@@ -65,6 +65,7 @@ def fetch_batch(
     params: Dict[str, Any] = {}
     if nm_id is not None:
         params["filterNmID"] = nm_id
+        params["limit"] = limit
     else:
         params.update({"limit": limit, "offset": offset})
 

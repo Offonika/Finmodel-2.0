@@ -38,7 +38,7 @@ def test_import_prices_inserts_rows(monkeypatch):
     )
 
     def fake_get(url, params, timeout):
-        assert params == {"filterNmID": "123"}
+        assert params == {"filterNmID": "123", "limit": script.PAGE_LIMIT}
         return fake_response
 
     fake_session = SimpleNamespace(get=fake_get)
