@@ -539,6 +539,8 @@ def main(argv: Optional[List[str]] = None) -> None:
                             batch = fetch_batch(http, nm_id=nm)
                         except requests.exceptions.HTTPError as exc:
                             logger.warning("HTTP error for nmID %s: %s", nm, exc)
+                            if exc.response is not None:
+                                logger.warning("Response body: %s", exc.response.text)
                             continue
                         except Exception:
                             logger.exception("Ошибка при запросе nmID: %s", nm)
