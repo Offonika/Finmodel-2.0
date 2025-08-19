@@ -8,7 +8,7 @@ import sqlite3
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable, List, Dict, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import requests
 from requests.adapters import HTTPAdapter, Retry
@@ -16,14 +16,15 @@ from requests.adapters import HTTPAdapter, Retry
 from finmodel.logger import get_logger, setup_logging
 
 WB_ENDPOINT = "https://discounts-prices-api.wildberries.ru/api/v2/list/goods/filter"
-CHUNK_SIZE = 100
 TIMEOUT = 15
 SLEEP_BETWEEN_BATCHES_SEC = 0.4
+PAGE_LIMIT = 1000
 
 logger = get_logger(__name__)
 
 
 # ───────────────────────────── helpers ───────────────────────────── #
+
 
 def iter_chunks(lst: List[str], size: int) -> Iterable[List[str]]:
     for i in range(0, len(lst), size):
@@ -40,9 +41,7 @@ def make_http(api_key: Optional[str] = None) -> requests.Session:
         status_forcelist=(429, 500, 502, 503, 504),
         allowed_methods=frozenset(["GET"]),
     )
-    s.headers.update(
-        {"Accept": "application/json", "User-Agent": "WB-SPP-Fetcher/1.0 (+PowerBI)"}
-    )
+    s.headers.update({"Accept": "application/json", "User-Agent": "WB-SPP-Fetcher/1.0 (+PowerBI)"})
     if api_key:
         s.headers["Authorization"] = api_key
     s.mount("https://", HTTPAdapter(max_retries=retries))
@@ -51,14 +50,20 @@ def make_http(api_key: Optional[str] = None) -> requests.Session:
 
 
 def fetch_batch(
-    http: requests.Session, limit: int, offset: int, filter_nm_id: Optional[str] = None
+    http: requests.Session,
+    nm_id: Optional[str] = None,
+    limit: int = PAGE_LIMIT,
+    offset: int = 0,
 ) -> List[Dict[str, Any]]:
-    """Возвращает список словарей в унифицированном формате:
-    nmId, sizeID, priceU, salePriceU, sale
+    """Fetch a batch of goods from WB API.
+
+    Returns list of dicts: nmId, sizeID, price, discountedPrice, discount.
     """
-    params: Dict[str, Any] = {"limit": limit, "offset": offset}
-    if filter_nm_id:
-        params["filterNmID"] = filter_nm_id
+    params: Dict[str, Any] = {}
+    if nm_id is not None:
+        params["filterNmID"] = nm_id
+    else:
+        params.update({"limit": limit, "offset": offset})
 
     r = http.get(WB_ENDPOINT, params=params, timeout=TIMEOUT)
     r.raise_for_status()
@@ -72,77 +77,88 @@ def fetch_batch(
 
     out: List[Dict[str, Any]] = []
     for p in products:
-        nm_id_raw: Any = p.get("nmId") or p.get("nmID") or p.get("id")
-        nm_id: Optional[str] = str(nm_id_raw) if nm_id_raw is not None else None
+        nm_raw: Any = p.get("nmID") or p.get("nmId") or p.get("id")
+        nm_str: Optional[str] = str(nm_raw) if nm_raw is not None else None
         sizes_any: Any = p.get("sizes") or []
         sizes: List[Dict[str, Any]] = sizes_any if isinstance(sizes_any, list) else []
 
-        # Если размеров нет — берём цену с уровня товара (если она там есть)
         if not sizes:
             out.append(
                 {
-                    "nmId": nm_id,
+                    "nmId": nm_str,
                     "sizeID": None,
-                    "priceU": p.get("priceU") if isinstance(p.get("priceU"), int) else None,
-                    "salePriceU": (
-                        p.get("salePriceU") if isinstance(p.get("salePriceU"), int) else None
+                    "price": p.get("price") if isinstance(p.get("price"), (int, float)) else None,
+                    "discountedPrice": (
+                        p.get("discountedPrice")
+                        if isinstance(p.get("discountedPrice"), (int, float))
+                        else None
                     ),
-                    "sale": (
-                        float(p.get("sale")) if isinstance(p.get("sale"), (int, float)) else None
+                    "discount": (
+                        float(p.get("discount"))
+                        if isinstance(p.get("discount"), (int, float))
+                        else None
                     ),
                 }
             )
             continue
 
         for s in sizes:
-            # поля могут быть на уровне size, а могут наследоваться от товара
-            priceU: Optional[int] = s.get("priceU") if isinstance(s.get("priceU"), int) else (
-                p.get("priceU") if isinstance(p.get("priceU"), int) else None
+            price: Optional[float] = (
+                s.get("price")
+                if isinstance(s.get("price"), (int, float))
+                else (p.get("price") if isinstance(p.get("price"), (int, float)) else None)
             )
-            salePriceU: Optional[int] = (
-                s.get("salePriceU") if isinstance(s.get("salePriceU"), int) else (
-                    p.get("salePriceU") if isinstance(p.get("salePriceU"), int) else None
+            discounted_price: Optional[float] = (
+                s.get("discountedPrice")
+                if isinstance(s.get("discountedPrice"), (int, float))
+                else (
+                    p.get("discountedPrice")
+                    if isinstance(p.get("discountedPrice"), (int, float))
+                    else None
                 )
             )
-            sale_val: Any = s.get("sale")
-            if sale_val is None:
-                sale_val = p.get("sale")
-            sale: Optional[float] = float(sale_val) if isinstance(sale_val, (int, float)) else None
+            disc_val: Any = s.get("discount")
+            if disc_val is None:
+                disc_val = p.get("discount")
+            discount: Optional[float] = (
+                float(disc_val) if isinstance(disc_val, (int, float)) else None
+            )
 
-            size_raw: Any = s.get("sizeId") or s.get("sizeID") or s.get("id")
+            size_raw: Any = s.get("sizeID") or s.get("sizeId") or s.get("id")
             size_id: Optional[str] = str(size_raw) if size_raw is not None else None
 
             out.append(
                 {
-                    "nmId": nm_id,
+                    "nmId": nm_str,
                     "sizeID": size_id,
-                    "priceU": priceU,
-                    "salePriceU": salePriceU,
-                    "sale": sale,
+                    "price": price,
+                    "discountedPrice": discounted_price,
+                    "discount": discount,
                 }
             )
     return out
 
 
 def calc_metrics(row: Dict[str, Any]) -> Dict[str, Any]:
-    priceU: Optional[int] = row.get("priceU")
-    salePriceU: Optional[int] = row.get("salePriceU")
-    sale: Optional[float] = row.get("sale")
+    price: Optional[float] = row.get("price")
+    discounted: Optional[float] = row.get("discountedPrice")
+    discount: Optional[float] = row.get("discount")
 
     discount_total_pct: Optional[float] = (
-        (1 - (salePriceU / priceU)) * 100.0
-        if priceU is not None and salePriceU is not None and priceU != 0
+        (1 - (discounted / price)) * 100.0
+        if price is not None and discounted is not None and price != 0
         else None
     )
-    # Примерная оценка «СПП» как разница между полной скидкой и публичной скидкой WB
     spp_pct_approx: Optional[float] = (
-        discount_total_pct - sale if discount_total_pct is not None and sale is not None else None
+        discount_total_pct - discount
+        if discount_total_pct is not None and discount is not None
+        else None
     )
 
     return {
         **row,
-        "price_rub": (priceU / 100.0) if isinstance(priceU, int) else None,
-        "salePrice_rub": (salePriceU / 100.0) if isinstance(salePriceU, int) else None,
+        "price_rub": float(price) if isinstance(price, (int, float)) else None,
+        "salePrice_rub": float(discounted) if isinstance(discounted, (int, float)) else None,
         "discount_total_pct": discount_total_pct,
         "spp_pct_approx": spp_pct_approx,
         "updated_at_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -150,6 +166,7 @@ def calc_metrics(row: Dict[str, Any]) -> Dict[str, Any]:
 
 
 # ───────────────────────────── IO: sources ───────────────────────────── #
+
 
 def read_nmids_from_csv(path: str, col: str) -> List[str]:
     nmids: List[str] = []
@@ -220,9 +237,9 @@ def read_nmids_from_sqlite(db_path: str, sql: Optional[str]) -> List[str]:
 CSV_FIELDS: List[str] = [
     "nmId",
     "sizeID",
-    "priceU",
-    "salePriceU",
-    "sale",
+    "price",
+    "discountedPrice",
+    "discount",
     "price_rub",
     "salePrice_rub",
     "discount_total_pct",
@@ -246,15 +263,14 @@ def write_to_sqlite(db_path: str, rows: List[Dict[str, Any]], table: str = "spp"
 
     with sqlite3.connect(db_path) as conn:
         cur = conn.cursor()
-        # Создаём таблицу, если отсутствует
         cur.execute(
             f"""
             CREATE TABLE IF NOT EXISTS {table} (
                 nmId TEXT,
                 sizeID TEXT,
-                priceU INTEGER,
-                salePriceU INTEGER,
-                sale REAL,
+                price REAL,
+                discountedPrice REAL,
+                discount REAL,
                 price_rub REAL,
                 salePrice_rub REAL,
                 discount_total_pct REAL,
@@ -264,14 +280,13 @@ def write_to_sqlite(db_path: str, rows: List[Dict[str, Any]], table: str = "spp"
             )
             """
         )
-        # Подготовим данные к вставке (позиционные параметры)
         data: List[Tuple[Any, ...]] = [
             (
                 r.get("nmId"),
                 r.get("sizeID"),
-                r.get("priceU"),
-                r.get("salePriceU"),
-                r.get("sale"),
+                r.get("price"),
+                r.get("discountedPrice"),
+                r.get("discount"),
                 r.get("price_rub"),
                 r.get("salePrice_rub"),
                 r.get("discount_total_pct"),
@@ -283,7 +298,7 @@ def write_to_sqlite(db_path: str, rows: List[Dict[str, Any]], table: str = "spp"
         cur.executemany(
             f"""
             INSERT OR REPLACE INTO {table}
-            (nmId, sizeID, priceU, salePriceU, sale, price_rub, salePrice_rub, discount_total_pct, spp_pct_approx, updated_at_utc)
+            (nmId, sizeID, price, discountedPrice, discount, price_rub, salePrice_rub, discount_total_pct, spp_pct_approx, updated_at_utc)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             data,
@@ -293,7 +308,9 @@ def write_to_sqlite(db_path: str, rows: List[Dict[str, Any]], table: str = "spp"
     return len(rows)
 
 
-def write_to_db_odbc(rows: List[Dict[str, Any]], dsn: str, table: str = "dbo.WBGoodsPricesFlat") -> int:
+def write_to_db_odbc(
+    rows: List[Dict[str, Any]], dsn: str, table: str = "dbo.WBGoodsPricesFlat"
+) -> int:
     """Вставка через ODBC (например, в MS SQL Server).
     Таблица должна существовать с колонками, соответствующими CSV_FIELDS.
     """
@@ -306,16 +323,14 @@ def write_to_db_odbc(rows: List[Dict[str, Any]], dsn: str, table: str = "dbo.WBG
     cn = pyodbc.connect(dsn, autocommit=False)
     try:
         cur = cn.cursor()
-        # Очистить таблицу (если нужна полная замена — по желанию можно убрать)
         cur.execute(f"TRUNCATE TABLE {table}")
-        # Подготовка данных
         data: List[Tuple[Any, ...]] = [
             (
                 r.get("nmId"),
                 r.get("sizeID"),
-                r.get("priceU"),
-                r.get("salePriceU"),
-                r.get("sale"),
+                r.get("price"),
+                r.get("discountedPrice"),
+                r.get("discount"),
                 r.get("price_rub"),
                 r.get("salePrice_rub"),
                 r.get("discount_total_pct"),
@@ -324,12 +339,11 @@ def write_to_db_odbc(rows: List[Dict[str, Any]], dsn: str, table: str = "dbo.WBG
             )
             for r in rows
         ]
-        # Вставка
         cur.fast_executemany = True
         cur.executemany(
             f"""
             INSERT INTO {table}
-            (nmId, sizeID, priceU, salePriceU, sale, price_rub, salePrice_rub, discount_total_pct, spp_pct_approx, updated_at_utc)
+            (nmId, sizeID, price, discountedPrice, discount, price_rub, salePrice_rub, discount_total_pct, spp_pct_approx, updated_at_utc)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             data,
@@ -344,21 +358,33 @@ def write_to_db_odbc(rows: List[Dict[str, Any]], dsn: str, table: str = "dbo.WBG
 
 # ───────────────────────────── pipeline ───────────────────────────── #
 
+
 def import_prices(
-    nmids: List[str],
+    nmids: Optional[List[str]],
     dsn: Optional[str],
     api_key: Optional[str] = None,
     http: Optional[requests.Session] = None,
 ) -> int:
+    if not api_key:
+        raise ValueError("WB API key is required")
     http = http or make_http(api_key)
     all_rows: List[Dict[str, Any]] = []
-    for i, chunk in enumerate(iter_chunks(nmids, CHUNK_SIZE)):
-        filter_nm = ";".join(chunk)
-        raw_rows = fetch_batch(http, limit=len(chunk), offset=i * CHUNK_SIZE, filter_nm_id=filter_nm)
-        all_rows.extend(calc_metrics(r) for r in raw_rows)
-        time.sleep(SLEEP_BETWEEN_BATCHES_SEC)
+    if nmids:
+        for nm in nmids:
+            raw_rows = fetch_batch(http, nm_id=nm)
+            all_rows.extend(calc_metrics(r) for r in raw_rows)
+            time.sleep(SLEEP_BETWEEN_BATCHES_SEC)
+    else:
+        offset = 0
+        while True:
+            raw_rows = fetch_batch(http, limit=PAGE_LIMIT, offset=offset)
+            if not raw_rows:
+                break
+            all_rows.extend(calc_metrics(r) for r in raw_rows)
+            offset += PAGE_LIMIT
+            time.sleep(SLEEP_BETWEEN_BATCHES_SEC)
 
-    written: int = 0
+    written = 0
     if dsn:
         written = write_to_db_odbc(all_rows, dsn)
     return written
@@ -366,13 +392,13 @@ def import_prices(
 
 def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    src_group = parser.add_mutually_exclusive_group(required=True)
+    src_group = parser.add_mutually_exclusive_group(required=False)
     src_group.add_argument("--csv", help="CSV-файл с колонкой nmId")
     src_group.add_argument("--txt", help="TXT-файл со списком nmId")
     src_group.add_argument("--sqlite", help="SQLite-файл с nmId")
     parser.add_argument("--col", default="nmId", help="Имя колонки для CSV")
     parser.add_argument("--sql", help="SQL-запрос для извлечения nmId из SQLite")
-    parser.add_argument("--api-key", help="API key for Authorization header")
+    parser.add_argument("--api-key", required=True, help="API key for Authorization header")
 
     parser.add_argument("--out-csv", help="Путь к выходному CSV")
     parser.add_argument("--out-sqlite", help="SQLite для записи результатов")
@@ -396,31 +422,42 @@ def main(argv: Optional[List[str]] = None) -> None:
             nmids = read_nmids_from_csv(args.csv, args.col)
         elif args.txt:
             nmids = read_nmids_from_txt(args.txt)
-        else:
+        elif args.sqlite:
             nmids = read_nmids_from_sqlite(args.sqlite, args.sql)
+        else:
+            nmids = []
 
-        if not nmids:
-            logger.error("Не найдено ни одного nmId")
-            raise SystemExit(1)
-        logger.info("Загружено nmId: %s", len(nmids))
+        if nmids:
+            logger.info("Загружено nmId: %s", len(nmids))
+        else:
+            logger.info("Загружается полный каталог продавца")
 
         http = make_http(args.api_key)
         rows_out: List[Dict[str, Any]] = []
-        for i, chunk in enumerate(iter_chunks(nmids, CHUNK_SIZE)):
-            filter_nm = ";".join(chunk)
-            try:
-                batch = fetch_batch(
-                    http,
-                    limit=len(chunk),
-                    offset=i * CHUNK_SIZE,
-                    filter_nm_id=filter_nm,
-                )
-            except Exception:
-                logger.exception("Ошибка при запросе батча nmId: %s", chunk)
-                raise SystemExit(1)
-            for row in batch:
-                rows_out.append(calc_metrics(row))
-            time.sleep(SLEEP_BETWEEN_BATCHES_SEC)
+        if nmids:
+            for nm in nmids:
+                try:
+                    batch = fetch_batch(http, nm_id=nm)
+                except Exception:
+                    logger.exception("Ошибка при запросе nmID: %s", nm)
+                    raise SystemExit(1)
+                for row in batch:
+                    rows_out.append(calc_metrics(row))
+                time.sleep(SLEEP_BETWEEN_BATCHES_SEC)
+        else:
+            offset = 0
+            while True:
+                try:
+                    batch = fetch_batch(http, limit=PAGE_LIMIT, offset=offset)
+                except Exception:
+                    logger.exception("Ошибка при запросе offset: %s", offset)
+                    raise SystemExit(1)
+                if not batch:
+                    break
+                for row in batch:
+                    rows_out.append(calc_metrics(row))
+                offset += PAGE_LIMIT
+                time.sleep(SLEEP_BETWEEN_BATCHES_SEC)
 
         if args.out_csv:
             write_csv(args.out_csv, rows_out)

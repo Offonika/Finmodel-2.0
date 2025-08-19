@@ -35,9 +35,7 @@ def test_import_prices_inserts_rows(monkeypatch):
     )
 
     def fake_get(url, params, timeout):
-        assert params["limit"] == 1
-        assert params["offset"] == 0
-        assert params["filterNmID"] == "123"
+        assert params == {"filterNmID": "123"}
         return fake_response
 
     fake_session = SimpleNamespace(get=fake_get)
@@ -60,6 +58,9 @@ def test_import_prices_inserts_rows(monkeypatch):
         def cursor(self):
             return FakeCursor()
 
+        def commit(self):
+            pass
+
         def close(self):
             pass
 
@@ -67,8 +68,16 @@ def test_import_prices_inserts_rows(monkeypatch):
     monkeypatch.setitem(sys.modules, "pyodbc", fake_pyodbc)
     monkeypatch.setattr(script.time, "sleep", lambda x: None)
 
-    inserted = script.import_prices(["123"], dsn="DSN=test", http=fake_session)
+    inserted = script.import_prices(["123"], dsn="DSN=test", api_key="TOKEN", http=fake_session)
 
     assert inserted == 1
-    assert rows[0][0] == "123"
-    assert rows[0][1] == "1"
+    row = rows[0]
+    assert row[0] == "123"
+    assert row[1] == "1"
+    assert row[2] == 1000
+    assert row[3] == 900
+    assert row[4] == 10
+    assert row[5] == 1000
+    assert row[6] == 900
+    assert row[7] == pytest.approx(10)
+    assert row[8] == pytest.approx(0)
