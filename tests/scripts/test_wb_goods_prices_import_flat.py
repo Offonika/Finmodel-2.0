@@ -117,15 +117,18 @@ def test_main_uses_db_tokens(tmp_path, monkeypatch):
             }
         ]
 
-    rows_written: list[dict] = []
+
 
     monkeypatch.setattr(script, "make_http", fake_make_http)
     monkeypatch.setattr(script, "fetch_batch", fake_fetch_batch)
     monkeypatch.setattr(script, "calc_metrics", lambda r: r)
     monkeypatch.setattr(script.time, "sleep", lambda x: None)
-    monkeypatch.setattr(script, "write_csv", lambda path, rows: rows_written.extend(rows))
 
-    script.main(["--out-csv", str(tmp_path / "out.csv")])
+
+    script.main([])
 
     assert used_tokens == ["T1", "T2"]
-    assert [r["nmId"] for r in rows_written] == ["111", "222"]
+    with sqlite3.connect(db) as conn:
+        rows = conn.execute("SELECT org_id, nmId FROM WBGoodsPricesFlat ORDER BY org_id").fetchall()
+    assert rows == [(1, "111"), (2, "222")]
+

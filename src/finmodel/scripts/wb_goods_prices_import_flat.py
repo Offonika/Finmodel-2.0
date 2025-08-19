@@ -332,6 +332,64 @@ def write_to_sqlite(db_path: str, rows: List[Dict[str, Any]], table: str = "spp"
     return len(rows)
 
 
+def write_prices_to_db(db_path: str, rows: List[Dict[str, Any]]) -> int:
+    """Persist rows into ``WBGoodsPricesFlat`` table inside ``finmodel.db``."""
+
+    if not rows:
+        logger.warning("Нет строк для записи в БД — пропускаю.")
+        return 0
+
+    with sqlite3.connect(db_path) as conn:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS WBGoodsPricesFlat (
+                org_id INTEGER,
+                nmId TEXT,
+                sizeID TEXT,
+                price REAL,
+                discountedPrice REAL,
+                discount REAL,
+                price_rub REAL,
+                salePrice_rub REAL,
+                discount_total_pct REAL,
+                spp_pct_approx REAL,
+                updated_at_utc TEXT,
+                PRIMARY KEY (org_id, nmId, sizeID)
+            )
+            """
+        )
+        cur.execute("DELETE FROM WBGoodsPricesFlat")
+        data = [
+            (
+                r.get("org_id"),
+                r.get("nmId"),
+                r.get("sizeID"),
+                r.get("price"),
+                r.get("discountedPrice"),
+                r.get("discount"),
+                r.get("price_rub"),
+                r.get("salePrice_rub"),
+                r.get("discount_total_pct"),
+                r.get("spp_pct_approx"),
+                r.get("updated_at_utc"),
+            )
+            for r in rows
+        ]
+        cur.executemany(
+            """
+            INSERT OR REPLACE INTO WBGoodsPricesFlat
+            (org_id, nmId, sizeID, price, discountedPrice, discount,
+             price_rub, salePrice_rub, discount_total_pct, spp_pct_approx, updated_at_utc)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            data,
+        )
+        conn.commit()
+    logger.info("Записано строк в базу: %s", len(rows))
+    return len(rows)
+
+
 def write_to_db_odbc(
     rows: List[Dict[str, Any]], dsn: str, table: str = "dbo.WBGoodsPricesFlat"
 ) -> int:
@@ -431,10 +489,7 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
         "--odbc-table", default="dbo.WBGoodsPricesFlat", help="Таблица для записи через ODBC"
     )
 
-    args = parser.parse_args(argv)
-    if not (args.out_csv or args.out_sqlite or args.out_odbc):
-        parser.error("Нужно указать хотя бы один вывод: --out-csv, --out-sqlite или --out-odbc")
-    return args
+    return parser.parse_args(argv)
 
 
 def main(argv: Optional[List[str]] = None) -> None:
@@ -482,7 +537,11 @@ def main(argv: Optional[List[str]] = None) -> None:
                             logger.exception("Ошибка при запросе nmID: %s", nm)
                             raise SystemExit(1)
                         for row in batch:
-                            rows_out.append(calc_metrics(row))
+
+                            enriched = calc_metrics(row)
+                            enriched["org_id"] = org_id
+                            rows_out.append(enriched)
+
                         time.sleep(SLEEP_BETWEEN_BATCHES_SEC)
                 else:
                     offset = 0
@@ -495,14 +554,19 @@ def main(argv: Optional[List[str]] = None) -> None:
                         if not batch:
                             break
                         for row in batch:
-                            rows_out.append(calc_metrics(row))
+
+                            enriched = calc_metrics(row)
+                            enriched["org_id"] = org_id
+                            rows_out.append(enriched)
                         offset += PAGE_LIMIT
                         time.sleep(SLEEP_BETWEEN_BATCHES_SEC)
+
+        write_prices_to_db(db_path, rows_out)
 
         if args.out_csv:
             write_csv(args.out_csv, rows_out)
         if args.out_sqlite:
-            write_to_sqlite(args.out_sqlite, rows_out)
+            write_to_sqlite(args.out_sqlite, rows_out, table="WBGoodsPricesFlat")
         if args.out_odbc:
             write_to_db_odbc(rows_out, args.out_odbc, table=args.odbc_table)
 
