@@ -16,7 +16,9 @@ from requests.adapters import HTTPAdapter, Retry
 from finmodel.logger import get_logger, setup_logging
 from finmodel.utils.db_load import load_wb_tokens
 from finmodel.utils.paths import get_db_path
+
 from finmodel.utils.settings import find_setting
+
 
 WB_ENDPOINT = "https://discounts-prices-api.wildberries.ru/api/v2/list/goods/filter"
 TIMEOUT = 15
@@ -508,6 +510,7 @@ def main(argv: Optional[List[str]] = None) -> None:
         else:
             nmids_override = None
 
+
         org_sheet = find_setting("ORG_SHEET", default="НастройкиОрганизаций")
         logger.info("Using organizations sheet %s", org_sheet)
 
@@ -519,6 +522,7 @@ def main(argv: Optional[List[str]] = None) -> None:
             if not tokens:
                 logger.error("Настройки.xlsm не содержит организаций с токенами")
                 raise SystemExit(1)
+
 
         rows_out: List[Dict[str, Any]] = []
         with sqlite3.connect(db_path) as conn:

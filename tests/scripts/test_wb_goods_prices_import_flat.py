@@ -84,9 +84,11 @@ def test_import_prices_inserts_rows(monkeypatch):
     assert row[8] == pytest.approx(0)
 
 
+
 def test_main_uses_xls_tokens(tmp_path, monkeypatch):
     db = tmp_path / "finmodel.db"
     with sqlite3.connect(db) as conn:
+
         conn.execute("CREATE TABLE katalog (org_id INTEGER, nmID TEXT)")
         conn.executemany(
             "INSERT INTO katalog (org_id, nmID) VALUES (?, ?)",
@@ -94,6 +96,7 @@ def test_main_uses_xls_tokens(tmp_path, monkeypatch):
         )
 
     monkeypatch.setattr(script, "get_db_path", lambda: db)
+
     monkeypatch.setattr(
         script, "load_wb_tokens", lambda sheet=None, path=None: [(1, "T1"), (2, "T2")]
     )
@@ -115,10 +118,12 @@ def test_main_uses_xls_tokens(tmp_path, monkeypatch):
             }
         ]
 
+
     monkeypatch.setattr(script, "make_http", fake_make_http)
     monkeypatch.setattr(script, "fetch_batch", fake_fetch_batch)
     monkeypatch.setattr(script, "calc_metrics", lambda r: r)
     monkeypatch.setattr(script.time, "sleep", lambda x: None)
+
 
     script.main([])
 
@@ -126,3 +131,4 @@ def test_main_uses_xls_tokens(tmp_path, monkeypatch):
     with sqlite3.connect(db) as conn:
         rows = conn.execute("SELECT org_id, nmId FROM WBGoodsPricesFlat ORDER BY org_id").fetchall()
     assert rows == [(1, "111"), (2, "222")]
+
