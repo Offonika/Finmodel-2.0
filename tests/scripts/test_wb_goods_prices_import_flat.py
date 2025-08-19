@@ -1,3 +1,4 @@
+import sqlite3
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -81,3 +82,50 @@ def test_import_prices_inserts_rows(monkeypatch):
     assert row[6] == 900
     assert row[7] == pytest.approx(10)
     assert row[8] == pytest.approx(0)
+
+
+def test_main_uses_db_tokens(tmp_path, monkeypatch):
+    db = tmp_path / "finmodel.db"
+    with sqlite3.connect(db) as conn:
+        conn.execute("CREATE TABLE НастройкиОрганизаций (id INTEGER, Token_WB TEXT)")
+        conn.executemany(
+            "INSERT INTO НастройкиОрганизаций (id, Token_WB) VALUES (?, ?)",
+            [(1, "T1"), (2, "T2")],
+        )
+        conn.execute("CREATE TABLE katalog (org_id INTEGER, nmID TEXT)")
+        conn.executemany(
+            "INSERT INTO katalog (org_id, nmID) VALUES (?, ?)",
+            [(1, "111"), (2, "222")],
+        )
+
+    monkeypatch.setattr(script, "get_db_path", lambda: db)
+
+    used_tokens: list[str] = []
+
+    def fake_make_http(token):
+        used_tokens.append(token)
+        return SimpleNamespace()
+
+    def fake_fetch_batch(http, nm_id=None, limit=1000, offset=0):
+        return [
+            {
+                "nmId": nm_id or str(offset),
+                "sizeID": None,
+                "price": 1,
+                "discountedPrice": 1,
+                "discount": 0,
+            }
+        ]
+
+    rows_written: list[dict] = []
+
+    monkeypatch.setattr(script, "make_http", fake_make_http)
+    monkeypatch.setattr(script, "fetch_batch", fake_fetch_batch)
+    monkeypatch.setattr(script, "calc_metrics", lambda r: r)
+    monkeypatch.setattr(script.time, "sleep", lambda x: None)
+    monkeypatch.setattr(script, "write_csv", lambda path, rows: rows_written.extend(rows))
+
+    script.main(["--out-csv", str(tmp_path / "out.csv")])
+
+    assert used_tokens == ["T1", "T2"]
+    assert [r["nmId"] for r in rows_written] == ["111", "222"]
