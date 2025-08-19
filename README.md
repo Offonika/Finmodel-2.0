@@ -75,12 +75,14 @@ finmodel dump_schema --db finmodel.db --output schema.sql
    ```
    Старый формат `python -m finmodel.scripts.*` по-прежнему работает для совместимости.
 
+
   Скрипт `wb_goods_prices_import_flat` загружает текущие цены товаров по списку
   `nmID` или весь каталог продавца, если список не указан, и сохраняет данные
   в таблицу `WBGoodsPricesFlat` в `finmodel.db`. При желании можно указать
   дополнительные выводы (CSV, сторонний SQLite, ODBC). Токен можно передать
   через `--api-key` или опустить — тогда скрипт возьмёт все токены из базы
   `finmodel.db` и обработает каждую организацию по очереди:
+
 
    ```bash
    python -m finmodel.scripts.wb_goods_prices_import_flat \
@@ -218,6 +220,7 @@ finmodel finotchet_import
 ### wb_goods_prices_import_flat
 
 Скрипт `wb_goods_prices_import_flat` запрашивает цены и скидки товаров и
+
 сохраняет результат в таблицу `WBGoodsPricesFlat` внутри `finmodel.db`.
 Дополнительно можно указать вывод в CSV, сторонний SQLite или через ODBC.
 Можно передать список `nmID` из CSV, TXT или SQLite, либо не указывать
@@ -227,6 +230,7 @@ finmodel finotchet_import
 через `--api-key` или загрузить автоматически из таблицы
 `НастройкиОрганизаций`.
 
+
 Пример запуска со списком:
 
 ```bash
@@ -235,10 +239,12 @@ python -m finmodel.scripts.wb_goods_prices_import_flat \
   --api-key "$WB_TOKEN" \
   --out-sqlite prices.db
 
+
 # автоматический режим по всем организациям, запись в finmodel.db
 python -m finmodel.scripts.wb_goods_prices_import_flat
 
 # дополнительные выводы
+
 python -m finmodel.scripts.wb_goods_prices_import_flat \
   --out-odbc "DSN=FinModel"
 ```

@@ -537,9 +537,11 @@ def main(argv: Optional[List[str]] = None) -> None:
                             logger.exception("Ошибка при запросе nmID: %s", nm)
                             raise SystemExit(1)
                         for row in batch:
+
                             enriched = calc_metrics(row)
                             enriched["org_id"] = org_id
                             rows_out.append(enriched)
+
                         time.sleep(SLEEP_BETWEEN_BATCHES_SEC)
                 else:
                     offset = 0
@@ -552,6 +554,7 @@ def main(argv: Optional[List[str]] = None) -> None:
                         if not batch:
                             break
                         for row in batch:
+
                             enriched = calc_metrics(row)
                             enriched["org_id"] = org_id
                             rows_out.append(enriched)
@@ -559,6 +562,7 @@ def main(argv: Optional[List[str]] = None) -> None:
                         time.sleep(SLEEP_BETWEEN_BATCHES_SEC)
 
         write_prices_to_db(db_path, rows_out)
+
         if args.out_csv:
             write_csv(args.out_csv, rows_out)
         if args.out_sqlite:
