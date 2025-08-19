@@ -336,10 +336,6 @@ def write_to_sqlite(db_path: str, rows: List[Dict[str, Any]], table: str = "spp"
 def write_prices_to_db(db_path: str, rows: List[Dict[str, Any]]) -> int:
     """Persist rows into ``WBGoodsPricesFlat`` table inside ``finmodel.db``."""
 
-    if not rows:
-        logger.warning("Нет строк для записи в БД — пропускаю.")
-        return 0
-
     with sqlite3.connect(db_path) as conn:
         cur = conn.cursor()
         cur.execute(
@@ -360,6 +356,10 @@ def write_prices_to_db(db_path: str, rows: List[Dict[str, Any]]) -> int:
             )
             """
         )
+        if not rows:
+            conn.commit()
+            logger.warning("Нет строк для записи в БД — пропускаю.")
+            return 0
         cur.execute("DELETE FROM WBGoodsPricesFlat")
         data = [
             (
