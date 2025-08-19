@@ -14,6 +14,8 @@ import requests
 from requests.adapters import HTTPAdapter, Retry
 
 from finmodel.logger import get_logger, setup_logging
+from finmodel.utils.db_load import load_wb_tokens
+from finmodel.utils.paths import get_db_path
 
 WB_ENDPOINT = "https://discounts-prices-api.wildberries.ru/api/v2/list/goods/filter"
 TIMEOUT = 15
@@ -232,6 +234,28 @@ def read_nmids_from_sqlite(db_path: str, sql: Optional[str]) -> List[str]:
     return nmids
 
 
+def read_nmids_for_org(conn: sqlite3.Connection, org_id: int) -> List[str]:
+    """Return ``nmId`` values for a given organization."""
+
+    try_sql = [
+        "SELECT DISTINCT nmID AS nmId FROM katalog WHERE org_id = ? AND nmID IS NOT NULL",
+        "SELECT DISTINCT nm_id AS nmId FROM katalog WHERE org_id = ? AND nm_id IS NOT NULL",
+    ]
+
+    for q in try_sql:
+        try:
+            rows = conn.execute(q, (org_id,)).fetchall()
+            if rows:
+                return [
+                    str(r["nmId"]).strip()
+                    for r in rows
+                    if r["nmId"] is not None and str(r["nmId"]).strip() != ""
+                ]
+        except sqlite3.Error:
+            continue
+    return []
+
+
 # ───────────────────────────── IO: sinks ───────────────────────────── #
 
 CSV_FIELDS: List[str] = [
@@ -305,6 +329,64 @@ def write_to_sqlite(db_path: str, rows: List[Dict[str, Any]], table: str = "spp"
         )
         conn.commit()
     logger.info("Записано строк в SQLite: %s", len(rows))
+    return len(rows)
+
+
+def write_prices_to_db(db_path: str, rows: List[Dict[str, Any]]) -> int:
+    """Persist rows into ``WBGoodsPricesFlat`` table inside ``finmodel.db``."""
+
+    if not rows:
+        logger.warning("Нет строк для записи в БД — пропускаю.")
+        return 0
+
+    with sqlite3.connect(db_path) as conn:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS WBGoodsPricesFlat (
+                org_id INTEGER,
+                nmId TEXT,
+                sizeID TEXT,
+                price REAL,
+                discountedPrice REAL,
+                discount REAL,
+                price_rub REAL,
+                salePrice_rub REAL,
+                discount_total_pct REAL,
+                spp_pct_approx REAL,
+                updated_at_utc TEXT,
+                PRIMARY KEY (org_id, nmId, sizeID)
+            )
+            """
+        )
+        cur.execute("DELETE FROM WBGoodsPricesFlat")
+        data = [
+            (
+                r.get("org_id"),
+                r.get("nmId"),
+                r.get("sizeID"),
+                r.get("price"),
+                r.get("discountedPrice"),
+                r.get("discount"),
+                r.get("price_rub"),
+                r.get("salePrice_rub"),
+                r.get("discount_total_pct"),
+                r.get("spp_pct_approx"),
+                r.get("updated_at_utc"),
+            )
+            for r in rows
+        ]
+        cur.executemany(
+            """
+            INSERT OR REPLACE INTO WBGoodsPricesFlat
+            (org_id, nmId, sizeID, price, discountedPrice, discount,
+             price_rub, salePrice_rub, discount_total_pct, spp_pct_approx, updated_at_utc)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            data,
+        )
+        conn.commit()
+    logger.info("Записано строк в базу: %s", len(rows))
     return len(rows)
 
 
@@ -398,7 +480,7 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     src_group.add_argument("--sqlite", help="SQLite-файл с nmId")
     parser.add_argument("--col", default="nmId", help="Имя колонки для CSV")
     parser.add_argument("--sql", help="SQL-запрос для извлечения nmId из SQLite")
-    parser.add_argument("--api-key", required=True, help="API key for Authorization header")
+    parser.add_argument("--api-key", help="API key for Authorization header")
 
     parser.add_argument("--out-csv", help="Путь к выходному CSV")
     parser.add_argument("--out-sqlite", help="SQLite для записи результатов")
@@ -407,10 +489,7 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
         "--odbc-table", default="dbo.WBGoodsPricesFlat", help="Таблица для записи через ODBC"
     )
 
-    args = parser.parse_args(argv)
-    if not (args.out_csv or args.out_sqlite or args.out_odbc):
-        parser.error("Нужно указать хотя бы один вывод: --out-csv, --out-sqlite или --out-odbc")
-    return args
+    return parser.parse_args(argv)
 
 
 def main(argv: Optional[List[str]] = None) -> None:
@@ -418,51 +497,72 @@ def main(argv: Optional[List[str]] = None) -> None:
     args = parse_args(argv)
 
     try:
+        nmids_override: Optional[List[str]]
         if args.csv:
-            nmids = read_nmids_from_csv(args.csv, args.col)
+            nmids_override = read_nmids_from_csv(args.csv, args.col)
         elif args.txt:
-            nmids = read_nmids_from_txt(args.txt)
+            nmids_override = read_nmids_from_txt(args.txt)
         elif args.sqlite:
-            nmids = read_nmids_from_sqlite(args.sqlite, args.sql)
+            nmids_override = read_nmids_from_sqlite(args.sqlite, args.sql)
         else:
-            nmids = []
+            nmids_override = None
 
-        if nmids:
-            logger.info("Загружено nmId: %s", len(nmids))
+        db_path = str(get_db_path())
+        if args.api_key:
+            tokens: List[Tuple[Optional[int], str]] = [(None, args.api_key)]
         else:
-            logger.info("Загружается полный каталог продавца")
+            tokens = load_wb_tokens(db_path)
+            if not tokens:
+                logger.error("Не найдены токены в базе данных")
+                raise SystemExit(1)
 
-        http = make_http(args.api_key)
         rows_out: List[Dict[str, Any]] = []
-        if nmids:
-            for nm in nmids:
-                try:
-                    batch = fetch_batch(http, nm_id=nm)
-                except Exception:
-                    logger.exception("Ошибка при запросе nmID: %s", nm)
-                    raise SystemExit(1)
-                for row in batch:
-                    rows_out.append(calc_metrics(row))
-                time.sleep(SLEEP_BETWEEN_BATCHES_SEC)
-        else:
-            offset = 0
-            while True:
-                try:
-                    batch = fetch_batch(http, limit=PAGE_LIMIT, offset=offset)
-                except Exception:
-                    logger.exception("Ошибка при запросе offset: %s", offset)
-                    raise SystemExit(1)
-                if not batch:
-                    break
-                for row in batch:
-                    rows_out.append(calc_metrics(row))
-                offset += PAGE_LIMIT
-                time.sleep(SLEEP_BETWEEN_BATCHES_SEC)
+        with sqlite3.connect(db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            for org_id, token in tokens:
+                http = make_http(token)
+                if nmids_override is not None:
+                    nmids = nmids_override
+                elif org_id is not None:
+                    nmids = read_nmids_for_org(conn, org_id)
+                    logger.info("Орг %s: найдено nmId: %s", org_id, len(nmids))
+                else:
+                    nmids = []
 
+                if nmids:
+                    for nm in nmids:
+                        try:
+                            batch = fetch_batch(http, nm_id=nm)
+                        except Exception:
+                            logger.exception("Ошибка при запросе nmID: %s", nm)
+                            raise SystemExit(1)
+                        for row in batch:
+                            enriched = calc_metrics(row)
+                            enriched["org_id"] = org_id
+                            rows_out.append(enriched)
+                        time.sleep(SLEEP_BETWEEN_BATCHES_SEC)
+                else:
+                    offset = 0
+                    while True:
+                        try:
+                            batch = fetch_batch(http, limit=PAGE_LIMIT, offset=offset)
+                        except Exception:
+                            logger.exception("Ошибка при запросе offset: %s", offset)
+                            raise SystemExit(1)
+                        if not batch:
+                            break
+                        for row in batch:
+                            enriched = calc_metrics(row)
+                            enriched["org_id"] = org_id
+                            rows_out.append(enriched)
+                        offset += PAGE_LIMIT
+                        time.sleep(SLEEP_BETWEEN_BATCHES_SEC)
+
+        write_prices_to_db(db_path, rows_out)
         if args.out_csv:
             write_csv(args.out_csv, rows_out)
         if args.out_sqlite:
-            write_to_sqlite(args.out_sqlite, rows_out)
+            write_to_sqlite(args.out_sqlite, rows_out, table="WBGoodsPricesFlat")
         if args.out_odbc:
             write_to_db_odbc(rows_out, args.out_odbc, table=args.odbc_table)
 
