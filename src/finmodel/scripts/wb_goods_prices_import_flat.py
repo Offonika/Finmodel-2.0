@@ -83,6 +83,8 @@ def fetch_batch(
     for p in products:
         nm_raw: Any = p.get("nmID") or p.get("nmId") or p.get("id")
         nm_str: Optional[str] = str(nm_raw) if nm_raw is not None else None
+        vendor_raw: Any = p.get("vendorCode")
+        vendor_code: Optional[str] = str(vendor_raw) if vendor_raw is not None else None
         sizes_any: Any = p.get("sizes") or []
         sizes: List[Dict[str, Any]] = sizes_any if isinstance(sizes_any, list) else []
 
@@ -90,6 +92,7 @@ def fetch_batch(
             out.append(
                 {
                     "nmId": nm_str,
+                    "vendorCode": vendor_code,
                     "sizeID": None,
                     "price": p.get("price") if isinstance(p.get("price"), (int, float)) else None,
                     "discountedPrice": (
@@ -134,6 +137,7 @@ def fetch_batch(
             out.append(
                 {
                     "nmId": nm_str,
+                    "vendorCode": vendor_code,
                     "sizeID": size_id,
                     "price": price,
                     "discountedPrice": discounted_price,
@@ -262,6 +266,7 @@ def read_nmids_for_org(conn: sqlite3.Connection, org_id: int) -> List[str]:
 
 CSV_FIELDS: List[str] = [
     "nmId",
+    "vendorCode",
     "sizeID",
     "price",
     "discountedPrice",
@@ -293,6 +298,7 @@ def write_to_sqlite(db_path: str, rows: List[Dict[str, Any]], table: str = "spp"
             f"""
             CREATE TABLE IF NOT EXISTS {table} (
                 nmId TEXT,
+                vendorCode TEXT,
                 sizeID TEXT,
                 price REAL,
                 discountedPrice REAL,
@@ -309,6 +315,7 @@ def write_to_sqlite(db_path: str, rows: List[Dict[str, Any]], table: str = "spp"
         data: List[Tuple[Any, ...]] = [
             (
                 r.get("nmId"),
+                r.get("vendorCode"),
                 r.get("sizeID"),
                 r.get("price"),
                 r.get("discountedPrice"),
@@ -324,8 +331,8 @@ def write_to_sqlite(db_path: str, rows: List[Dict[str, Any]], table: str = "spp"
         cur.executemany(
             f"""
             INSERT OR REPLACE INTO {table}
-            (nmId, sizeID, price, discountedPrice, discount, price_rub, salePrice_rub, discount_total_pct, spp_pct_approx, updated_at_utc)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (nmId, vendorCode, sizeID, price, discountedPrice, discount, price_rub, salePrice_rub, discount_total_pct, spp_pct_approx, updated_at_utc)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             data,
         )
@@ -344,6 +351,7 @@ def write_prices_to_db(db_path: str, rows: List[Dict[str, Any]]) -> int:
             CREATE TABLE IF NOT EXISTS WBGoodsPricesFlat (
                 org_id INTEGER,
                 nmId TEXT,
+                vendorCode TEXT,
                 sizeID TEXT,
                 price REAL,
                 discountedPrice REAL,
@@ -366,6 +374,7 @@ def write_prices_to_db(db_path: str, rows: List[Dict[str, Any]]) -> int:
             (
                 r.get("org_id"),
                 r.get("nmId"),
+                r.get("vendorCode"),
                 r.get("sizeID"),
                 r.get("price"),
                 r.get("discountedPrice"),
@@ -381,9 +390,9 @@ def write_prices_to_db(db_path: str, rows: List[Dict[str, Any]]) -> int:
         cur.executemany(
             """
             INSERT OR REPLACE INTO WBGoodsPricesFlat
-            (org_id, nmId, sizeID, price, discountedPrice, discount,
+            (org_id, nmId, vendorCode, sizeID, price, discountedPrice, discount,
              price_rub, salePrice_rub, discount_total_pct, spp_pct_approx, updated_at_utc)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             data,
         )
@@ -411,6 +420,7 @@ def write_to_db_odbc(
         data: List[Tuple[Any, ...]] = [
             (
                 r.get("nmId"),
+                r.get("vendorCode"),
                 r.get("sizeID"),
                 r.get("price"),
                 r.get("discountedPrice"),
@@ -427,8 +437,8 @@ def write_to_db_odbc(
         cur.executemany(
             f"""
             INSERT INTO {table}
-            (nmId, sizeID, price, discountedPrice, discount, price_rub, salePrice_rub, discount_total_pct, spp_pct_approx, updated_at_utc)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (nmId, vendorCode, sizeID, price, discountedPrice, discount, price_rub, salePrice_rub, discount_total_pct, spp_pct_approx, updated_at_utc)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             data,
         )

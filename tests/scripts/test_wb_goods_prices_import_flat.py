@@ -21,6 +21,7 @@ def test_import_prices_inserts_rows(monkeypatch):
                 "products": [
                     {
                         "id": 123,
+                        "vendorCode": "VC-123",
                         "sizes": [
                             {
                                 "sizeId": 1,
@@ -76,14 +77,15 @@ def test_import_prices_inserts_rows(monkeypatch):
     assert inserted == 1
     row = rows[0]
     assert row[0] == "123"
-    assert row[1] == "1"
-    assert row[2] == 1000
-    assert row[3] == 900
-    assert row[4] == 10
-    assert row[5] == 1000
-    assert row[6] == 900
-    assert row[7] == pytest.approx(10)
-    assert row[8] == pytest.approx(0)
+    assert row[1] == "VC-123"
+    assert row[2] == "1"
+    assert row[3] == 1000
+    assert row[4] == 900
+    assert row[5] == 10
+    assert row[6] == 1000
+    assert row[7] == 900
+    assert row[8] == pytest.approx(10)
+    assert row[9] == pytest.approx(0)
 
 
 def test_main_uses_xls_tokens(tmp_path, monkeypatch):
