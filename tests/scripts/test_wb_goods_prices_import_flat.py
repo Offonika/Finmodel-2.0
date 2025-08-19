@@ -1,9 +1,11 @@
+import logging
 import sqlite3
 import sys
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+import requests
 
 # Ensure src is importable
 sys.path.append(str(Path(__file__).resolve().parents[2] / "src"))
@@ -84,7 +86,6 @@ def test_import_prices_inserts_rows(monkeypatch):
     assert row[8] == pytest.approx(0)
 
 
-
 def test_main_uses_xls_tokens(tmp_path, monkeypatch):
     db = tmp_path / "finmodel.db"
     with sqlite3.connect(db) as conn:
@@ -118,12 +119,10 @@ def test_main_uses_xls_tokens(tmp_path, monkeypatch):
             }
         ]
 
-
     monkeypatch.setattr(script, "make_http", fake_make_http)
     monkeypatch.setattr(script, "fetch_batch", fake_fetch_batch)
     monkeypatch.setattr(script, "calc_metrics", lambda r: r)
     monkeypatch.setattr(script.time, "sleep", lambda x: None)
-
 
     script.main([])
 
@@ -132,3 +131,36 @@ def test_main_uses_xls_tokens(tmp_path, monkeypatch):
         rows = conn.execute("SELECT org_id, nmId FROM WBGoodsPricesFlat ORDER BY org_id").fetchall()
     assert rows == [(1, "111"), (2, "222")]
 
+
+def test_main_skips_nmids_on_http_error(monkeypatch, caplog):
+    nmids = ["111", "222"]
+    monkeypatch.setattr(script, "read_nmids_from_txt", lambda p: nmids)
+    monkeypatch.setattr(script, "load_wb_tokens", lambda sheet=None, path=None: [(None, "T")])
+    monkeypatch.setattr(script, "get_db_path", lambda: "dummy")
+    monkeypatch.setattr(script, "make_http", lambda token: SimpleNamespace())
+
+    def fake_fetch_batch(http, nm_id=None, limit=1000, offset=0):
+        if nm_id == "111":
+            raise requests.exceptions.HTTPError("boom")
+        return [
+            {
+                "nmId": nm_id,
+                "sizeID": None,
+                "price": 1,
+                "discountedPrice": 1,
+                "discount": 0,
+            }
+        ]
+
+    monkeypatch.setattr(script, "fetch_batch", fake_fetch_batch)
+    monkeypatch.setattr(script, "calc_metrics", lambda r: r)
+    monkeypatch.setattr(script.time, "sleep", lambda x: None)
+
+    collected = []
+    monkeypatch.setattr(script, "write_prices_to_db", lambda db_path, rows: collected.extend(rows))
+
+    with caplog.at_level(logging.WARNING):
+        script.main(["--txt", "dummy"])
+
+    assert any("HTTP error for nmID 111" in r.message for r in caplog.records)
+    assert collected and collected[0]["nmId"] == "222"
