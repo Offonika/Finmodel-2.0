@@ -84,14 +84,11 @@ def test_import_prices_inserts_rows(monkeypatch):
     assert row[8] == pytest.approx(0)
 
 
-def test_main_uses_db_tokens(tmp_path, monkeypatch):
+
+def test_main_uses_xls_tokens(tmp_path, monkeypatch):
     db = tmp_path / "finmodel.db"
     with sqlite3.connect(db) as conn:
-        conn.execute("CREATE TABLE НастройкиОрганизаций (id INTEGER, Token_WB TEXT)")
-        conn.executemany(
-            "INSERT INTO НастройкиОрганизаций (id, Token_WB) VALUES (?, ?)",
-            [(1, "T1"), (2, "T2")],
-        )
+
         conn.execute("CREATE TABLE katalog (org_id INTEGER, nmID TEXT)")
         conn.executemany(
             "INSERT INTO katalog (org_id, nmID) VALUES (?, ?)",
@@ -99,6 +96,10 @@ def test_main_uses_db_tokens(tmp_path, monkeypatch):
         )
 
     monkeypatch.setattr(script, "get_db_path", lambda: db)
+
+    monkeypatch.setattr(
+        script, "load_wb_tokens", lambda sheet=None, path=None: [(1, "T1"), (2, "T2")]
+    )
 
     used_tokens: list[str] = []
 
@@ -116,7 +117,6 @@ def test_main_uses_db_tokens(tmp_path, monkeypatch):
                 "discount": 0,
             }
         ]
-
 
 
     monkeypatch.setattr(script, "make_http", fake_make_http)

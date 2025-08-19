@@ -17,6 +17,9 @@ from finmodel.logger import get_logger, setup_logging
 from finmodel.utils.db_load import load_wb_tokens
 from finmodel.utils.paths import get_db_path
 
+from finmodel.utils.settings import find_setting
+
+
 WB_ENDPOINT = "https://discounts-prices-api.wildberries.ru/api/v2/list/goods/filter"
 TIMEOUT = 15
 SLEEP_BETWEEN_BATCHES_SEC = 0.4
@@ -507,14 +510,19 @@ def main(argv: Optional[List[str]] = None) -> None:
         else:
             nmids_override = None
 
+
+        org_sheet = find_setting("ORG_SHEET", default="НастройкиОрганизаций")
+        logger.info("Using organizations sheet %s", org_sheet)
+
         db_path = str(get_db_path())
         if args.api_key:
             tokens: List[Tuple[Optional[int], str]] = [(None, args.api_key)]
         else:
-            tokens = load_wb_tokens(db_path)
+            tokens = load_wb_tokens(sheet=org_sheet)
             if not tokens:
-                logger.error("Не найдены токены в базе данных")
+                logger.error("Настройки.xlsm не содержит организаций с токенами")
                 raise SystemExit(1)
+
 
         rows_out: List[Dict[str, Any]] = []
         with sqlite3.connect(db_path) as conn:
@@ -537,11 +545,9 @@ def main(argv: Optional[List[str]] = None) -> None:
                             logger.exception("Ошибка при запросе nmID: %s", nm)
                             raise SystemExit(1)
                         for row in batch:
-
                             enriched = calc_metrics(row)
                             enriched["org_id"] = org_id
                             rows_out.append(enriched)
-
                         time.sleep(SLEEP_BETWEEN_BATCHES_SEC)
                 else:
                     offset = 0
@@ -554,7 +560,6 @@ def main(argv: Optional[List[str]] = None) -> None:
                         if not batch:
                             break
                         for row in batch:
-
                             enriched = calc_metrics(row)
                             enriched["org_id"] = org_id
                             rows_out.append(enriched)
@@ -562,7 +567,6 @@ def main(argv: Optional[List[str]] = None) -> None:
                         time.sleep(SLEEP_BETWEEN_BATCHES_SEC)
 
         write_prices_to_db(db_path, rows_out)
-
         if args.out_csv:
             write_csv(args.out_csv, rows_out)
         if args.out_sqlite:

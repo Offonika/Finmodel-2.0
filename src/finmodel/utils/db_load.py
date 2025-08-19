@@ -1,38 +1,33 @@
 from __future__ import annotations
 
-import sqlite3
+
 from pathlib import Path
-from typing import Iterable, List, Tuple
+from typing import List, Tuple
+
+from finmodel.utils.settings import load_organizations
 
 
-def load_wb_tokens(db_path: str | Path) -> List[Tuple[int, str]]:
-    """Return organization IDs and Wildberries tokens from SQLite.
+def load_wb_tokens(
+    path: str | Path | None = None, sheet: str | None = None
+) -> List[Tuple[int, str]]:
+    """Return organization IDs and Wildberries tokens from ``Настройки.xlsm``.
 
     Args:
-        db_path: Path to ``finmodel.db``.
+        path: Optional path to the workbook. Defaults to ``Настройки.xlsm``
+            in the project root.
+        sheet: Optional sheet name. Defaults to the value resolved inside
+            :func:`load_organizations` (``"НастройкиОрганизаций"``).
 
     Returns:
-        List of ``(id, Token_WB)`` tuples. Rows with null or blank tokens are
-        filtered out. Missing databases return an empty list.
+        List of ``(id, Token_WB)`` tuples. Rows with blank tokens are filtered
+        out. Missing or malformed workbooks return an empty list.
     """
 
-    p = Path(db_path)
-    if not p.exists():
-        return []
-
-    query = "SELECT id, Token_WB FROM НастройкиОрганизаций WHERE Token_WB IS NOT NULL"
-    with sqlite3.connect(str(p)) as conn:
-        conn.row_factory = sqlite3.Row
-        cur = conn.cursor()
-        rows: Iterable[sqlite3.Row]
-        try:
-            rows = cur.execute(query).fetchall()
-        finally:
-            cur.close()
-
-    out: List[Tuple[int, str]] = []
-    for r in rows:
-        token = str(r["Token_WB"]).strip()
-        if token:
-            out.append((int(r["id"]), token))
-    return out
+    df = load_organizations(path=path, sheet=sheet)
+    tokens: List[Tuple[int, str]] = []
+    if not df.empty:
+        for _, row in df.iterrows():
+            token = str(row.get("Token_WB", "")).strip()
+            if token:
+                tokens.append((int(row["id"]), token))
+    return tokens
