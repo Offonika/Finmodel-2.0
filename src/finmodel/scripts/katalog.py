@@ -96,7 +96,12 @@ def main() -> None:
         nmID = None
 
         while has_more:
-            payload = {"settings": {"cursor": {"limit": 100}, "filter": {"withPhoto": -1}}}
+            payload = {
+                "settings": {
+                    "cursor": {"limit": 100},
+                    "filter": {"withPhoto": -1, "allowedCategoriesOnly": False},
+                }
+            }
 
             if updatedAt and nmID:
                 payload["settings"]["cursor"].update({"updatedAt": updatedAt, "nmID": nmID})
