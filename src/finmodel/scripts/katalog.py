@@ -147,6 +147,7 @@ def main() -> None:
 
             if rows:
                 try:
+                    logger.debug("Writing %s rows to database", len(rows))
                     cursor.executemany(
                         """
                         REPLACE INTO katalog (
@@ -162,14 +163,17 @@ def main() -> None:
                     logger.warning("Ошибка записи в БД: %s", e)
                     break
 
-            # Обновление курсора
-            cursor_data = data.get("cursor", {})
-            updatedAt = cursor_data.get("updatedAt")
-            nmID = cursor_data.get("nmID")
-            total = cursor_data.get("total", 0)
+            # Обновление курсора для следующего запроса
+            if cards:
+                last_card = cards[-1]
+                updatedAt = last_card.get("updatedAt")
+                nmID = last_card.get("nmID")
+                has_more = len(cards) == 100
+                logger.debug("Next cursor: updatedAt=%s, nmID=%s", updatedAt, nmID)
+            else:
+                has_more = False
 
-            logger.info("  Загружено %s карточек, осталось ~%s", len(cards), total)
-            has_more = total >= 100
+            logger.info("  Загружено %s карточек", len(cards))
             if has_more:
                 time.sleep(0.6)
 
