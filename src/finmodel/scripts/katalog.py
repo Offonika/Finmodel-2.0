@@ -13,6 +13,120 @@ REQUIRED_COLUMNS = {"id", "Организация", "Token_WB"}
 logger = get_logger(__name__)
 
 
+def fetch_cards(
+    cursor: sqlite3.Cursor,
+    conn: sqlite3.Connection,
+    org_id: int,
+    org_name: str,
+    headers: dict,
+    url: str,
+    label: str,
+) -> None:
+    """Fetch cards from *url* and store them in ``katalog``.
+
+    Parameters
+    ----------
+    cursor, conn
+        Database connection objects.
+    org_id, org_name
+        Organization identification.
+    headers
+        HTTP headers including authorization token.
+    url
+        Endpoint to query (active or trash).
+    label
+        Text to distinguish log entries (e.g. ``"active"`` or ``"trash"``).
+    """
+
+    has_more = True
+    updatedAt = None
+    nmID = None
+
+    while has_more:
+        payload = {"settings": {"cursor": {"limit": 100}, "filter": {"withPhoto": -1}}}
+        if updatedAt and nmID:
+            payload["settings"]["cursor"].update({"updatedAt": updatedAt, "nmID": nmID})
+
+        try:
+            response = requests.post(url, json=payload, headers=headers, timeout=30)
+            if response.status_code != 200:
+                logger.warning(
+                    "Ошибка запроса (%s): статус %s, ответ: %s",
+                    label,
+                    response.status_code,
+                    response.text,
+                )
+                break
+            data = response.json()
+        except Exception as e:  # pylint: disable=broad-except
+            logger.warning("Ошибка запроса (%s): %s", label, e)
+            break
+
+        cards = data.get("cards", [])
+        if not cards:
+            logger.info("  Нет %s карточек.", label)
+            break
+
+        rows = []
+        for card in cards:
+            createdAt = card.get("createdAt")
+            updatedAtCard = card.get("updatedAt")
+            vendor_code = str(card.get("vendorCode", "")).lower()
+            for size in card.get("sizes", []):
+                techSize = size.get("techSize")
+                chrtID = size.get("chrtID")
+                for sku in size.get("skus", []):
+                    rows.append(
+                        (
+                            org_id,
+                            org_name,
+                            card.get("nmID"),
+                            card.get("imtID"),
+                            card.get("nmUUID"),
+                            card.get("subjectID"),
+                            card.get("subjectName"),
+                            card.get("brand"),
+                            vendor_code,
+                            techSize,
+                            sku,
+                            chrtID,
+                            createdAt,
+                            updatedAtCard,
+                        )
+                    )
+
+        if rows:
+            try:
+                logger.debug("Writing %s %s rows to database", len(rows), label)
+                cursor.executemany(
+                    """
+                    REPLACE INTO katalog (
+                        org_id, Организация, nmID, imtID, nmUUID,
+                        subjectID, subjectName, brand, vendorCode,
+                        techSize, sku, chrtID, createdAt, updatedAt
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                    rows,
+                )
+                conn.commit()
+            except Exception as e:  # pylint: disable=broad-except
+                logger.warning("Ошибка записи в БД (%s): %s", label, e)
+                break
+
+        if cards:
+            last_card = cards[-1]
+            updatedAt = last_card.get("updatedAt")
+            nmID = last_card.get("nmID")
+            has_more = len(cards) == 100
+            logger.debug("Next %s cursor: updatedAt=%s, nmID=%s", label, updatedAt, nmID)
+        else:
+            has_more = False
+
+        logger.info("  Загружено %s %s карточек", len(cards), label)
+        if has_more:
+            time.sleep(0.6)
+
+
 def main() -> None:
     setup_logging()
     # 📌 Paths
@@ -78,7 +192,8 @@ def main() -> None:
     logger.info("СТРУКТУРА katalog: %s", cursor.fetchall())
 
     # 📌 Wildberries API
-    url = "https://content-api.wildberries.ru/content/v2/get/cards/list"
+    active_url = "https://content-api.wildberries.ru/content/v2/get/cards/list"
+    trash_url = "https://content-api.wildberries.ru/content/v2/get/cards/trash"
     headers_template = {"Content-Type": "application/json"}
 
     # 📌 Обработка всех организаций
@@ -91,97 +206,9 @@ def main() -> None:
         headers = headers_template.copy()
         headers["Authorization"] = token
 
-        has_more = True
-        updatedAt = None
-        nmID = None
 
-        while has_more:
-            payload = {
-                "settings": {
-                    "cursor": {"limit": 100},
-                    "filter": {"withPhoto": -1, "allowedCategoriesOnly": False},
-                }
-            }
-
-            if updatedAt and nmID:
-                payload["settings"]["cursor"].update({"updatedAt": updatedAt, "nmID": nmID})
-
-            try:
-                response = requests.post(url, json=payload, headers=headers, timeout=30)
-                if response.status_code != 200:
-                    logger.warning(
-                        "Ошибка запроса: статус %s, ответ: %s", response.status_code, response.text
-                    )
-                    break
-                data = response.json()
-            except Exception as e:
-                logger.warning("Ошибка запроса: %s", e)
-                break
-
-            cards = data.get("cards", [])
-            if not cards:
-                logger.info("  Нет карточек.")
-                break
-
-            rows = []
-            for card in cards:
-                createdAt = card.get("createdAt")
-                updatedAtCard = card.get("updatedAt")
-                vendor_code = str(card.get("vendorCode", "")).lower()
-                for size in card.get("sizes", []):
-                    techSize = size.get("techSize")
-                    chrtID = size.get("chrtID")
-                    for sku in size.get("skus", []):
-                        rows.append(
-                            (
-                                org_id,
-                                org_name,
-                                card.get("nmID"),
-                                card.get("imtID"),
-                                card.get("nmUUID"),
-                                card.get("subjectID"),
-                                card.get("subjectName"),
-                                card.get("brand"),
-                                vendor_code,
-                                techSize,
-                                sku,
-                                chrtID,
-                                createdAt,
-                                updatedAtCard,
-                            )
-                        )
-
-            if rows:
-                try:
-                    logger.debug("Writing %s rows to database", len(rows))
-                    cursor.executemany(
-                        """
-                        REPLACE INTO katalog (
-                            org_id, Организация, nmID, imtID, nmUUID,
-                            subjectID, subjectName, brand, vendorCode,
-                            techSize, sku, chrtID, createdAt, updatedAt
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                        rows,
-                    )
-                    conn.commit()
-                except Exception as e:
-                    logger.warning("Ошибка записи в БД: %s", e)
-                    break
-
-            # Обновление курсора для следующего запроса
-            if cards:
-                last_card = cards[-1]
-                updatedAt = last_card.get("updatedAt")
-                nmID = last_card.get("nmID")
-                has_more = len(cards) == 100
-                logger.debug("Next cursor: updatedAt=%s, nmID=%s", updatedAt, nmID)
-            else:
-                has_more = False
-
-            logger.info("  Загружено %s карточек", len(cards))
-            if has_more:
-                time.sleep(0.6)
+        fetch_cards(cursor, conn, org_id, org_name, headers, active_url, "active")
+        fetch_cards(cursor, conn, org_id, org_name, headers, trash_url, "trash")
 
     # 📌 Завершение
     conn.close()
