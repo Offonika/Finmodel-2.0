@@ -206,6 +206,7 @@ def main() -> None:
         headers = headers_template.copy()
         headers["Authorization"] = token
 
+
         fetch_cards(cursor, conn, org_id, org_name, headers, active_url, "active")
         fetch_cards(cursor, conn, org_id, org_name, headers, trash_url, "trash")
 
