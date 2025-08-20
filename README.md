@@ -191,6 +191,8 @@ Select an option:
 > **Note**
 > `katalog` and other data-import scripts expect the workbook `Настройки.xlsm` to
 > contain the columns `id`, `Организация` and `Token_WB`.
+> It also reads from `/content/v2/get/cards/trash` to include archived cards in the
+> resulting `katalog` table.
 
 ### finotchet_import
 
