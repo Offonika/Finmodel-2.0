@@ -122,6 +122,7 @@ def main() -> None:
             for card in cards:
                 createdAt = card.get("createdAt")
                 updatedAtCard = card.get("updatedAt")
+                vendor_code = str(card.get("vendorCode", "")).lower()
                 for size in card.get("sizes", []):
                     techSize = size.get("techSize")
                     chrtID = size.get("chrtID")
@@ -136,7 +137,7 @@ def main() -> None:
                                 card.get("subjectID"),
                                 card.get("subjectName"),
                                 card.get("brand"),
-                                str(card.get("vendorCode", "")).lower(),
+                                vendor_code,
                                 techSize,
                                 sku,
                                 chrtID,
