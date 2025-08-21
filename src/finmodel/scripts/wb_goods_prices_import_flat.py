@@ -163,13 +163,15 @@ def calc_metrics(row: Dict[str, Any]) -> Dict[str, Any]:
         else None
     )
 
+    now_utc = datetime.now(timezone.utc)
     return {
         **row,
         "price_rub": float(price) if isinstance(price, (int, float)) else None,
         "salePrice_rub": float(discounted) if isinstance(discounted, (int, float)) else None,
         "discount_total_pct": discount_total_pct,
         "spp_pct_approx": spp_pct_approx,
-        "updated_at_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "updated_at_utc": now_utc.isoformat(timespec="seconds"),
+        "snapshot_date": now_utc.date().isoformat(),
     }
 
 
@@ -276,6 +278,7 @@ CSV_FIELDS: List[str] = [
     "discount_total_pct",
     "spp_pct_approx",
     "updated_at_utc",
+    "snapshot_date",
 ]
 
 
@@ -308,7 +311,8 @@ def write_to_sqlite(db_path: str, rows: List[Dict[str, Any]], table: str = "spp"
                 discount_total_pct REAL,
                 spp_pct_approx REAL,
                 updated_at_utc TEXT,
-                PRIMARY KEY (nmId, sizeID)
+                snapshot_date TEXT,
+                PRIMARY KEY (nmId, sizeID, snapshot_date)
             )
             """
         )
@@ -325,14 +329,15 @@ def write_to_sqlite(db_path: str, rows: List[Dict[str, Any]], table: str = "spp"
                 r.get("discount_total_pct"),
                 r.get("spp_pct_approx"),
                 r.get("updated_at_utc"),
+                r.get("snapshot_date"),
             )
             for r in rows
         ]
         cur.executemany(
             f"""
             INSERT OR REPLACE INTO {table}
-            (nmId, vendorCode, sizeID, price, discountedPrice, discount, price_rub, salePrice_rub, discount_total_pct, spp_pct_approx, updated_at_utc)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (nmId, vendorCode, sizeID, price, discountedPrice, discount, price_rub, salePrice_rub, discount_total_pct, spp_pct_approx, updated_at_utc, snapshot_date)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             data,
         )
@@ -361,7 +366,8 @@ def write_prices_to_db(db_path: str, rows: List[Dict[str, Any]]) -> int:
                 discount_total_pct REAL,
                 spp_pct_approx REAL,
                 updated_at_utc TEXT,
-                PRIMARY KEY (org_id, nmId, sizeID)
+                snapshot_date TEXT,
+                PRIMARY KEY (org_id, nmId, sizeID, snapshot_date)
             )
             """
         )
@@ -369,7 +375,6 @@ def write_prices_to_db(db_path: str, rows: List[Dict[str, Any]]) -> int:
             conn.commit()
             logger.warning("Нет строк для записи в БД — пропускаю.")
             return 0
-        cur.execute("DELETE FROM WBGoodsPricesFlat")
         data = [
             (
                 r.get("org_id"),
@@ -384,6 +389,7 @@ def write_prices_to_db(db_path: str, rows: List[Dict[str, Any]]) -> int:
                 r.get("discount_total_pct"),
                 r.get("spp_pct_approx"),
                 r.get("updated_at_utc"),
+                r.get("snapshot_date"),
             )
             for r in rows
         ]
@@ -391,8 +397,8 @@ def write_prices_to_db(db_path: str, rows: List[Dict[str, Any]]) -> int:
             """
             INSERT OR REPLACE INTO WBGoodsPricesFlat
             (org_id, nmId, vendorCode, sizeID, price, discountedPrice, discount,
-             price_rub, salePrice_rub, discount_total_pct, spp_pct_approx, updated_at_utc)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             price_rub, salePrice_rub, discount_total_pct, spp_pct_approx, updated_at_utc, snapshot_date)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             data,
         )
@@ -430,6 +436,7 @@ def write_to_db_odbc(
                 r.get("discount_total_pct"),
                 r.get("spp_pct_approx"),
                 r.get("updated_at_utc"),
+                r.get("snapshot_date"),
             )
             for r in rows
         ]
@@ -437,8 +444,8 @@ def write_to_db_odbc(
         cur.executemany(
             f"""
             INSERT INTO {table}
-            (nmId, vendorCode, sizeID, price, discountedPrice, discount, price_rub, salePrice_rub, discount_total_pct, spp_pct_approx, updated_at_utc)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (nmId, vendorCode, sizeID, price, discountedPrice, discount, price_rub, salePrice_rub, discount_total_pct, spp_pct_approx, updated_at_utc, snapshot_date)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             data,
         )
