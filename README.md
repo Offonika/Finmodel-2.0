@@ -59,6 +59,20 @@ Python-утилиты для импорта и анализа финансовы
 finmodel dump_schema --db finmodel.db --output schema.sql
 ```
 
+### Миграция `katalog`
+
+Чтобы добавить колонку `snapshot_date` и новый составной первичный ключ в существующую таблицу `katalog`, выполните SQL-скрипт миграции. Предварительно сделайте резервную копию базы данных.
+
+```bash
+# для SQLite
+sqlite3 finmodel.db < migrations/20240706_add_snapshot_date_to_katalog.sql
+
+# для PostgreSQL
+psql -d finmodel -f migrations/20240706_add_snapshot_date_to_katalog.sql
+```
+
+Скрипт создаёт таблицу `katalog_new`, переносит в неё текущие строки с датой снимка `snapshot_date` равной текущей, а затем переименовывает таблицу обратно в `katalog`.
+
 4. Скопируйте `config.example.yml` в `config.yml` и заполните диапазоны дат.
    Файл `Настройки.xlsm` с колонками `id`, `Организация` и `Token_WB` должен
    находиться в корне проекта рядом с базой данных `finmodel.db`. Переменные

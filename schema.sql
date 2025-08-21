@@ -13,7 +13,8 @@ CREATE TABLE katalog (
     chrtID INTEGER,
     createdAt TEXT,
     updatedAt TEXT,
-    PRIMARY KEY (org_id, chrtID)
+    snapshot_date TEXT NOT NULL DEFAULT (CURRENT_DATE),
+    PRIMARY KEY (org_id, chrtID, snapshot_date)
 );
 
 CREATE TABLE FinOtchet (org_id INTEGER, Организация TEXT, realizationreport_id TEXT, date_from TEXT, date_to TEXT, create_dt TEXT, currency_name TEXT, suppliercontract_code TEXT, rrd_id TEXT, gi_id TEXT, dlv_prc TEXT, fix_tariff_date_from TEXT, fix_tariff_date_to TEXT, subject_name TEXT, nm_id TEXT, brand_name TEXT, sa_name TEXT, ts_name TEXT, barcode TEXT, doc_type_name TEXT, quantity TEXT, retail_price TEXT, retail_amount TEXT, sale_percent TEXT, commission_percent TEXT, office_name TEXT, supplier_oper_name TEXT, order_dt TEXT, sale_dt TEXT, rr_dt TEXT, shk_id TEXT, retail_price_withdisc_rub TEXT, delivery_amount TEXT, return_amount TEXT, delivery_rub TEXT, gi_box_type_name TEXT, product_discount_for_report TEXT, supplier_promo TEXT, ppvz_spp_prc TEXT, ppvz_kvw_prc_base TEXT, ppvz_kvw_prc TEXT, sup_rating_prc_up TEXT, is_kgvp_v2 TEXT, ppvz_sales_commission TEXT, ppvz_for_pay TEXT, ppvz_reward TEXT, acquiring_fee TEXT, acquiring_percent TEXT, payment_processing TEXT, acquiring_bank TEXT, ppvz_vw TEXT, ppvz_vw_nds TEXT, ppvz_office_name TEXT, ppvz_office_id TEXT, ppvz_supplier_id TEXT, ppvz_supplier_name TEXT, ppvz_inn TEXT, declaration_number TEXT, bonus_type_name TEXT, sticker_id TEXT, site_country TEXT, srv_dbs TEXT, penalty TEXT, additional_payment TEXT, rebill_logistic_cost TEXT, rebill_logistic_org TEXT, storage_fee TEXT, deduction TEXT, acceptance TEXT, assembly_id TEXT, kiz TEXT, srid TEXT, report_type TEXT, is_legal_entity TEXT, trbx_id TEXT, installment_cofinancing_amount TEXT, wibes_wb_discount_percent TEXT, cashback_amount TEXT, cashback_discount TEXT, PRIMARY KEY (org_id, rrd_id));
