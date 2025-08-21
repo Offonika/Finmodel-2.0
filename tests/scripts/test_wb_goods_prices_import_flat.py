@@ -125,7 +125,15 @@ def test_main_uses_xls_tokens(tmp_path, monkeypatch):
 
     monkeypatch.setattr(script, "make_http", fake_make_http)
     monkeypatch.setattr(script, "fetch_batch", fake_fetch_batch)
-    monkeypatch.setattr(script, "calc_metrics", lambda r: r)
+    monkeypatch.setattr(
+        script,
+        "calc_metrics",
+        lambda r: {
+            **r,
+            "snapshot_date": "2024-01-01",
+            "updated_at_utc": "2024-01-01T00:00:00",
+        },
+    )
     monkeypatch.setattr(script.time, "sleep", lambda x: None)
 
     script.main([])
@@ -157,7 +165,15 @@ def test_main_skips_nmids_on_http_error(monkeypatch, caplog):
         ]
 
     monkeypatch.setattr(script, "fetch_batch", fake_fetch_batch)
-    monkeypatch.setattr(script, "calc_metrics", lambda r: r)
+    monkeypatch.setattr(
+        script,
+        "calc_metrics",
+        lambda r: {
+            **r,
+            "snapshot_date": "2024-01-01",
+            "updated_at_utc": "2024-01-01T00:00:00",
+        },
+    )
     monkeypatch.setattr(script.time, "sleep", lambda x: None)
 
     collected = []
