@@ -1,6 +1,7 @@
 import logging
 import sqlite3
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -86,6 +87,7 @@ def test_import_prices_inserts_rows(monkeypatch):
     assert row[7] == 900
     assert row[8] == pytest.approx(10)
     assert row[9] == pytest.approx(0)
+    assert row[10] == datetime.now(timezone.utc).date().isoformat()
 
 
 def test_main_uses_xls_tokens(tmp_path, monkeypatch):
@@ -182,3 +184,30 @@ def test_main_skips_nmids_on_http_error(monkeypatch, caplog):
 
     assert any("HTTP error for nmID 111" in r.message for r in caplog.records)
     assert collected and collected[0]["nmId"] == "222"
+
+
+def test_write_prices_no_duplicates_same_day(tmp_path):
+    db = tmp_path / "finmodel.db"
+    today = datetime.now(timezone.utc).date().isoformat()
+    row = {
+        "org_id": 1,
+        "nmId": "123",
+        "vendorCode": "VC-123",
+        "sizeID": "1",
+        "price": 1000,
+        "discountedPrice": 900,
+        "discount": 10,
+        "price_rub": 1000,
+        "salePrice_rub": 900,
+        "discount_total_pct": 10.0,
+        "spp_pct_approx": 0.0,
+        "snapshot_date": today,
+    }
+    script.write_prices_to_db(str(db), [row])
+    script.write_prices_to_db(str(db), [row])
+    with sqlite3.connect(db) as conn:
+        count = conn.execute(
+            "SELECT COUNT(*) FROM WBGoodsPricesFlat WHERE snapshot_date = ?",
+            (today,),
+        ).fetchone()[0]
+    assert count == 1
