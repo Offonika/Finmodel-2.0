@@ -181,7 +181,8 @@ def main() -> None:
         chrtID INTEGER,
         createdAt TEXT,
         updatedAt TEXT,
-        PRIMARY KEY (org_id, chrtID)
+        snapshot_date TEXT NOT NULL DEFAULT (CURRENT_DATE),
+        PRIMARY KEY (org_id, chrtID, snapshot_date)
     );
     """
     )
@@ -205,7 +206,6 @@ def main() -> None:
         logger.info("→ Организация: %s (ID=%s)", org_name, org_id)
         headers = headers_template.copy()
         headers["Authorization"] = token
-
 
         fetch_cards(cursor, conn, org_id, org_name, headers, active_url, "active")
         fetch_cards(cursor, conn, org_id, org_name, headers, trash_url, "trash")
