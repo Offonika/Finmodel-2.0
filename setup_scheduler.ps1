@@ -1,9 +1,7 @@
-#!/usr/bin/env pwsh
-Set-StrictMode -Version Latest
-
 param(
     [string]$SchedulePath = "schedule.yml"
 )
+Set-StrictMode -Version Latest
 
 if (-not (Test-Path $SchedulePath)) {
     Write-Error "Schedule file '$SchedulePath' not found. Copy schedule.example.yml to schedule.yml and edit."
