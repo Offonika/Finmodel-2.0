@@ -33,9 +33,8 @@ foreach ($item in $schedule.GetEnumerator()) {
         Write-Warning "Skipping '$name': invalid cron '$cron'"
         continue
     }
-    $minute = [int]$parts[0]
-    $hour = [int]$parts[1]
-    $time = "{0:D2}:{1:D2}" -f $hour, $minute
+    $minuteField = $parts[0]
+    $hourField = $parts[1]
 
     $action = @(
         "docker run --rm",
@@ -46,6 +45,28 @@ foreach ($item in $schedule.GetEnumerator()) {
         "finmodel"
     ) -join ' '
 
-    schtasks.exe /Create /TN $name /TR $action /SC DAILY /ST $time /F | Out-Null
-    Write-Host "Created task '$name' at $time"
+    $args = @("/Create", "/TN", $name, "/TR", $action)
+
+    if ($minuteField -match '^\*/(\d+)$') {
+        $interval = [int]$Matches[1]
+        $args += @("/SC", "MINUTE", "/MO", $interval, "/ST", "00:00", "/F")
+        Write-Host "Created task '$name' every $interval minute(s)"
+    } else {
+        $minute = [int]$minuteField
+        $hour = [int]$hourField
+        $time = "{0:D2}:{1:D2}" -f $hour, $minute
+        if ($parts.Length -ge 5 -and $parts[4] -ne "*") {
+            $weekdayIndex = [int]$parts[4]
+            if ($weekdayIndex -eq 7) { $weekdayIndex = 0 }
+            $weekdayNames = @("SUN","MON","TUE","WED","THU","FRI","SAT")
+            $weekday = $weekdayNames[$weekdayIndex]
+            $args += @("/SC", "WEEKLY", "/D", $weekday, "/ST", $time, "/F")
+            Write-Host "Created task '$name' weekly on $weekday at $time"
+        } else {
+            $args += @("/SC", "DAILY", "/ST", $time, "/F")
+            Write-Host "Created task '$name' at $time"
+        }
+    }
+
+    schtasks.exe @args | Out-Null
 }

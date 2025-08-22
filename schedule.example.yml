@@ -3,3 +3,5 @@
 # Cron syntax: minute hour day month weekday
 finotchet_import: "0 3 * * *"
 saleswb_import_flat: "30 4 * * *"
+weekly_report: "0 7 * * 1"
+status_check: "*/30 * * * *"

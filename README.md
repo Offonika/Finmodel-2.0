@@ -1,6 +1,6 @@
 # Finmodel 2.0
 
-Python-утилиты для импорта и анализа финансовых данных с маркетплейса Wildberries.
+Python-утилиты для импорта и анализа финансовых данных с маркетплейса Wildberries./
 
 > **Примечание.** Документация проекта ведётся на русском языке; новые материалы также
 > следует оформлять на русском.
@@ -398,6 +398,14 @@ devtools\setup_scheduler.ps1 -DailyTime 03:00
 ```powershell
 devtools\setup_scheduler.ps1 -Cleanup
 ```
+
+To create tasks from cron expressions stored in `schedule.yml`, run:
+
+```powershell
+setup_scheduler.ps1
+```
+
+The script supports weekly schedules and minute intervals.
 
 
 ## Разработка
