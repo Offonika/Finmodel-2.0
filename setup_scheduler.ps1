@@ -1,12 +1,8 @@
-
 #!/usr/bin/env pwsh
-# Requires module 'powershell-yaml' for ConvertFrom-Yaml.
-Set-StrictMode -Version Latest
-
-
 param(
     [string]$SchedulePath = "schedule.yml"
 )
+# Requires module 'powershell-yaml' for ConvertFrom-Yaml.
 Set-StrictMode -Version Latest
 
 if (-not (Get-Command ConvertFrom-Yaml -ErrorAction SilentlyContinue)) {
