@@ -1,0 +1,5 @@
+# Example schedule configuration for Windows Task Scheduler
+# Copy this file to schedule.yml and adjust times.
+# Cron syntax: minute hour day month weekday
+finotchet_import: "0 3 * * *"
+saleswb_import_flat: "30 4 * * *"

@@ -368,6 +368,7 @@ docker run --rm -v C:\path\to\config.yml:/app/config.yml \
 
 Настройте триггер с нужным интервалом.
 
+
 Для автоматической регистрации задачи используйте скрипт `devtools\setup_scheduler.ps1`:
 
 ```powershell
@@ -391,6 +392,7 @@ devtools\setup_scheduler.ps1 -Remove
 # напрямую через Планировщик задач
 schtasks /Delete /TN "FinmodelImport" /F
 ```
+
 
 ## Разработка
 - Следуйте инструкциям в `AGENTS.md` по стандартам кодирования и тестированию

@@ -1,5 +1,6 @@
 
 config.yml
+schedule.yml
 .env
 
 # кэш и временные
