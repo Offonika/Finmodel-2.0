@@ -357,16 +357,20 @@ docker-compose up --build
 Этот пример запускает импорт каждый день в 03:00.
 
 ### Windows (Планировщик задач)
-Создайте простую задачу, которая выполняет:
+
+
+Для автоматического запуска используйте скрипт:
+
+```powershell
+devtools\setup_scheduler.ps1
 
 ```
-docker run --rm -v C:\path\to\config.yml:/app/config.yml \
-  -v C:\path\to\Настройки.xlsm:/app/Настройки.xlsm \
-  -v C:\path\to\finmodel.db:/app/finmodel.db \
- finmodel
-```
 
-Настройте триггер с нужным интервалом.
+Скрипт регистрирует ежедневные, еженедельные и повторяющиеся задания через `schtasks`. Время запуска и учётные данные можно передать параметрами. Чтобы удалить задачи, выполните:
+
+```powershell
+devtools\setup_scheduler.ps1 -Cleanup
+```
 
 
 Для автоматической регистрации задачи используйте скрипт `devtools\setup_scheduler.ps1`:
