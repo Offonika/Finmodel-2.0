@@ -1,6 +1,6 @@
 # Finmodel 2.0
 
-Python-утилиты для импорта и анализа финансовых данных с маркетплейса Wildberries.
+Python-утилиты для импорта и анализа финансовых данных с маркетплейса Wildberries./
 
 > **Примечание.** Документация проекта ведётся на русском языке; новые материалы также
 > следует оформлять на русском.
@@ -347,6 +347,10 @@ docker-compose up --build
 ## Планирование
 Для регулярного импорта данных запланируйте выполнение контейнера.
 
+В репозитории есть пример `schedule.example.yml` и скрипт `setup_scheduler.ps1`,
+который создаёт задачи по YAML-расписанию. Для чтения файла требуется модуль
+PowerShell `powershell-yaml` (командлет `ConvertFrom-Yaml`).
+
 ### Linux (cron)
 Выполните `crontab -e` и добавьте строку:
 
@@ -362,43 +366,37 @@ docker-compose up --build
 
 ### Windows (Планировщик задач)
 
+Для запуска скриптов требуется PowerShell 7 (с встроенной `ConvertFrom-Yaml`) либо модуль [`powershell-yaml`](https://www.powershellgallery.com/packages/powershell-yaml).
 
-Для автоматического запуска используйте скрипт:
+#### YAML-конфигурация
+
+Скрипт `setup_scheduler.ps1` в корне репозитория читает файл `schedule.yml` и создаёт задачи по его содержимому. Используйте его, когда нужно управлять несколькими заданиями через один YAML-файл.
 
 ```powershell
-devtools\setup_scheduler.ps1
-
+Copy-Item schedule.example.yml schedule.yml
+# отредактируйте расписание
+./setup_scheduler.ps1
 ```
 
-Скрипт регистрирует ежедневные, еженедельные и повторяющиеся задания через `schtasks`. Время запуска и учётные данные можно передать параметрами. Чтобы удалить задачи, выполните:
+#### Параметры командной строки
+
+Скрипт `devtools\setup_scheduler.ps1` создаёт отдельные задачи, задаваемые аргументами. Подходит для быстрого создания и удаления задач.
+
+```powershell
+# еженедельный запуск по понедельникам в 07:30
+devtools\setup_scheduler.ps1 -WeeklyDay MON -WeeklyTime 07:30
+
+# запуск каждые 2 часа, начиная с 08:00
+devtools\setup_scheduler.ps1 -IntervalStart 08:00 -IntervalMinutes 120
+
+# ежедневный запуск в 03:00 под текущей учётной записью
+devtools\setup_scheduler.ps1 -DailyTime 03:00
+```
+
+Чтобы удалить созданные задачи, выполните:
 
 ```powershell
 devtools\setup_scheduler.ps1 -Cleanup
-```
-
-
-Для автоматической регистрации задачи используйте скрипт `devtools\setup_scheduler.ps1`:
-
-```powershell
-# ежедневный запуск в 03:00 под текущей учётной записью
-devtools\setup_scheduler.ps1 -DailyTime 03:00
-
-# запуск от имени другого пользователя
-devtools\setup_scheduler.ps1 -DailyTime 06:30 -Username "DOMAIN\user" -Password "Secret"
-```
-
-Параметр `-DailyTime` задаёт время запуска (часы:минуты). Через `-Username` и `-Password`
-можно указать учётную запись. По умолчанию задача создаётся под текущим пользователем
-с именем `FinmodelImport`.
-
-Удалить задачу можно командами:
-
-```powershell
-# через скрипт
-devtools\setup_scheduler.ps1 -Remove
-
-# напрямую через Планировщик задач
-schtasks /Delete /TN "FinmodelImport" /F
 ```
 
 To create tasks from cron expressions stored in `schedule.yml`, run:
