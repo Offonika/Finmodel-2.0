@@ -401,6 +401,14 @@ devtools\setup_scheduler.ps1 -Remove
 schtasks /Delete /TN "FinmodelImport" /F
 ```
 
+To create tasks from cron expressions stored in `schedule.yml`, run:
+
+```powershell
+setup_scheduler.ps1
+```
+
+The script supports weekly schedules and minute intervals.
+
 
 ## Разработка
 - Следуйте инструкциям в `AGENTS.md` по стандартам кодирования и тестированию
