@@ -100,11 +100,15 @@ psql -d finmodel -f migrations/20240706_add_snapshot_date_to_katalog.sql
 
 
    ```bash
-   python -m finmodel.scripts.wb_goods_prices_import_flat \
-     --txt nmids.txt \
-     --api-key "$WB_TOKEN" \
-     --out-sqlite prices.db
-   ```
+    python -m finmodel.scripts.wb_goods_prices_import_flat \
+      --txt nmids.txt \
+      --api-key "$WB_TOKEN" \
+      --out-sqlite prices.db
+    ```
+
+Скрипт `wb_spp_fetch` запрашивает SPP для `nmID` из таблицы `katalog` и
+сохраняет результаты в таблицу `wb_spp`. Каждый запуск добавляет новую строку с
+меткой времени, а записи старше одного месяца удаляются.
 
 ## Конфигурация
 
