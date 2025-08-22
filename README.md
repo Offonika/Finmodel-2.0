@@ -347,6 +347,10 @@ docker-compose up --build
 ## Планирование
 Для регулярного импорта данных запланируйте выполнение контейнера.
 
+В репозитории есть пример `schedule.example.yml` и скрипт `setup_scheduler.ps1`,
+который создаёт задачи по YAML-расписанию. Для чтения файла требуется модуль
+PowerShell `powershell-yaml` (командлет `ConvertFrom-Yaml`).
+
 ### Linux (cron)
 Выполните `crontab -e` и добавьте строку:
 
