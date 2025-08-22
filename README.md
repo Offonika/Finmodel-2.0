@@ -358,10 +358,12 @@ docker-compose up --build
 
 ### Windows (Планировщик задач)
 
+
 Для автоматического запуска используйте скрипт:
 
 ```powershell
 devtools\setup_scheduler.ps1
+
 ```
 
 Скрипт регистрирует ежедневные, еженедельные и повторяющиеся задания через `schtasks`. Время запуска и учётные данные можно передать параметрами. Чтобы удалить задачи, выполните:
@@ -369,6 +371,32 @@ devtools\setup_scheduler.ps1
 ```powershell
 devtools\setup_scheduler.ps1 -Cleanup
 ```
+
+
+Для автоматической регистрации задачи используйте скрипт `devtools\setup_scheduler.ps1`:
+
+```powershell
+# ежедневный запуск в 03:00 под текущей учётной записью
+devtools\setup_scheduler.ps1 -DailyTime 03:00
+
+# запуск от имени другого пользователя
+devtools\setup_scheduler.ps1 -DailyTime 06:30 -Username "DOMAIN\user" -Password "Secret"
+```
+
+Параметр `-DailyTime` задаёт время запуска (часы:минуты). Через `-Username` и `-Password`
+можно указать учётную запись. По умолчанию задача создаётся под текущим пользователем
+с именем `FinmodelImport`.
+
+Удалить задачу можно командами:
+
+```powershell
+# через скрипт
+devtools\setup_scheduler.ps1 -Remove
+
+# напрямую через Планировщик задач
+schtasks /Delete /TN "FinmodelImport" /F
+```
+
 
 ## Разработка
 - Следуйте инструкциям в `AGENTS.md` по стандартам кодирования и тестированию
