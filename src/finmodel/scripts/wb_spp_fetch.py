@@ -35,7 +35,8 @@ BATCH_SIZE = 100
 # ──────────────────────────────────────────────────────────────────────────────
 CREATE_WB_SPP_SQL = """
 CREATE TABLE IF NOT EXISTS wb_spp (
-    nmID         INTEGER PRIMARY KEY,
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    nmID         INTEGER NOT NULL,
     priceU       INTEGER NOT NULL,
     salePriceU   INTEGER NOT NULL,
     sale_pct     INTEGER NOT NULL,
@@ -44,15 +45,11 @@ CREATE TABLE IF NOT EXISTS wb_spp (
 );
 """
 
+CLEANUP_SQL = "DELETE FROM wb_spp " "WHERE updated_at < datetime('now', '-1 month');"
+
 INSERT_SQL = """
 INSERT INTO wb_spp (nmID, priceU, salePriceU, sale_pct, spp, updated_at)
-VALUES (?, ?, ?, ?, ?, datetime('now'))
-ON CONFLICT(nmID) DO UPDATE SET
-    priceU       = excluded.priceU,
-    salePriceU   = excluded.salePriceU,
-    sale_pct     = excluded.sale_pct,
-    spp          = excluded.spp,
-    updated_at   = excluded.updated_at;
+VALUES (?, ?, ?, ?, ?, datetime('now'));
 """
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -113,6 +110,7 @@ def main() -> None:
         cur = con.cursor()
         try:
             cur.execute(CREATE_WB_SPP_SQL)
+            cur.execute(CLEANUP_SQL)
 
             try:
                 nm_ids = get_nm_ids(cur)

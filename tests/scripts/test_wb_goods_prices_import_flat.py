@@ -87,7 +87,8 @@ def test_import_prices_inserts_rows(monkeypatch):
     assert row[7] == 900
     assert row[8] == pytest.approx(10)
     assert row[9] == pytest.approx(0)
-    assert row[10] == datetime.now(timezone.utc).date().isoformat()
+    assert row[10].startswith(datetime.now(timezone.utc).date().isoformat())
+    assert row[11] == datetime.now(timezone.utc).date().isoformat()
 
 
 def test_main_uses_xls_tokens(tmp_path, monkeypatch):
