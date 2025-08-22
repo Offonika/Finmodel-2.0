@@ -1,9 +1,19 @@
 #!/usr/bin/env pwsh
+# Requires module 'powershell-yaml' for ConvertFrom-Yaml.
 Set-StrictMode -Version Latest
 
 param(
     [string]$SchedulePath = "schedule.yml"
 )
+
+if (-not (Get-Command ConvertFrom-Yaml -ErrorAction SilentlyContinue)) {
+    try {
+        Import-Module powershell-yaml -ErrorAction Stop
+    } catch {
+        Write-Error "ConvertFrom-Yaml not found. Install the 'powershell-yaml' module: Install-Module powershell-yaml"
+        exit 1
+    }
+}
 
 if (-not (Test-Path $SchedulePath)) {
     Write-Error "Schedule file '$SchedulePath' not found. Copy schedule.example.yml to schedule.yml and edit."
