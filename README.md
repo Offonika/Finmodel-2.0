@@ -368,6 +368,17 @@ PowerShell `powershell-yaml` (командлет `ConvertFrom-Yaml`).
 
 Для запуска скриптов требуется PowerShell 7 (с встроенной `ConvertFrom-Yaml`) либо модуль [`powershell-yaml`](https://www.powershellgallery.com/packages/powershell-yaml).
 
+Скрипт-обёртка `run_finmodel_task.ps1` запускает контейнер с указанным именем задачи
+и устанавливает переменную окружения `FINMODEL_SCRIPT`. Его можно вызвать вручную
+или через Планировщик задач:
+
+```powershell
+./run_finmodel_task.ps1 saleswb_import_flat
+```
+
+`setup_scheduler.ps1` использует эту обёртку при создании задач, чтобы команда в
+Планировщике была короче и не превышала ограничение в 261 символ.
+
 #### YAML-конфигурация
 
 Скрипт `setup_scheduler.ps1` в корне репозитория читает файл `schedule.yml` и создаёт задачи по его содержимому. Используйте его, когда нужно управлять несколькими заданиями через один YAML-файл.

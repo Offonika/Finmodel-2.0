@@ -32,14 +32,8 @@ foreach ($item in $schedule.GetEnumerator()) {
     $minuteField = $parts[0]
     $hourField = $parts[1]
 
-    $action = @(
-        "docker run --rm",
-        "-v ${PWD}\config.yml:/app/config.yml",
-        "-v ${PWD}\Настройки.xlsm:/app/Настройки.xlsm",
-        "-v ${PWD}\finmodel.db:/app/finmodel.db",
-        "-e FINMODEL_SCRIPT=finmodel.scripts.$name",
-        "finmodel"
-    ) -join ' '
+    $scriptPath = Join-Path $PWD "run_finmodel_task.ps1"
+    $action = "`"$scriptPath`" $name"
 
     $args = @("/Create", "/TN", $name, "/TR", $action)
 
