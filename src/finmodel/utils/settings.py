@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime
+from datetime import datetime, tzinfo
 from pathlib import Path
 from typing import Any, Dict
 
@@ -50,20 +50,20 @@ def find_setting(name: str, default: Any | None = None) -> Any:
     return os.getenv(name) or cfg.get(name, default)
 
 
-def parse_date(dt) -> datetime:
-    """Parse various date formats into ``datetime``.
+def parse_date(dt, tz: str | tzinfo | None = None) -> pd.Timestamp:
+    """Parse various date formats into a timezone-aware ``pd.Timestamp``.
 
     Supports ``dd.mm.yyyy``, ``yyyy-mm-dd`` and arbitrary ISO-like formats.
+    The returned timestamp is in UTC unless ``tz`` is provided to convert it to
+    another timezone.
     """
     s = str(dt).replace("T", " ").replace("/", ".").strip()
     if s == "":
         raise ValueError("empty date")
-    for fmt in ("%d.%m.%Y", "%Y-%m-%d"):
-        try:
-            return datetime.strptime(s, fmt)
-        except ValueError:
-            continue
-    return pd.to_datetime(s).to_pydatetime()
+    ts = pd.to_datetime(s, utc=True, dayfirst="." in s)
+    if tz is not None:
+        ts = ts.tz_convert(tz)
+    return ts
 
 
 def load_organizations(path: str | Path | None = None, sheet: str | None = None) -> pd.DataFrame:

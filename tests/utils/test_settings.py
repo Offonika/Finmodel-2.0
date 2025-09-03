@@ -1,4 +1,3 @@
-import datetime
 import sys
 from pathlib import Path
 
@@ -19,13 +18,18 @@ from finmodel.utils.settings import (
 @pytest.mark.parametrize(
     "raw, expected",
     [
-        ("01.02.2023", datetime.datetime(2023, 2, 1)),
-        ("2023-02-01", datetime.datetime(2023, 2, 1)),
-        ("2023-02-01T13:45:00", datetime.datetime(2023, 2, 1, 13, 45, 0)),
+        ("01.02.2023", pd.Timestamp("2023-02-01", tz="UTC")),
+        ("2023-02-01", pd.Timestamp("2023-02-01", tz="UTC")),
+        ("2023-02-01T13:45:00", pd.Timestamp("2023-02-01T13:45:00", tz="UTC")),
     ],
 )
 def test_parse_date(raw, expected):
     assert parse_date(raw) == expected
+
+
+def test_parse_date_with_timezone():
+    result = parse_date("2023-02-01", tz="Europe/Moscow")
+    assert result == pd.Timestamp("2023-02-01T03:00:00", tz="Europe/Moscow")
 
 
 def test_load_organizations_missing_columns(tmp_path):
