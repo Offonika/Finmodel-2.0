@@ -80,6 +80,7 @@ def test_load_period_custom_sheet(tmp_path, monkeypatch):
         df.to_excel(writer, sheet_name="Другое", index=False)
     monkeypatch.setenv("SETTINGS_SHEET", "Другое")
     monkeypatch.setattr(settings, "_config", None)
+    monkeypatch.setattr(settings, "_config_path", None)
     start, end = load_period(xls)
     assert start == "2023-01-01" and end == "2023-01-31"
 
@@ -105,3 +106,25 @@ def test_load_global_settings_skips_blank(tmp_path):
         df.to_excel(writer, sheet_name="Настройки", index=False, startrow=2)
     result = load_global_settings(xls, sheet="Настройки")
     assert result == {"foo": "val1", "bar": "42"}
+
+
+def test_load_config_force_reload(tmp_path, monkeypatch):
+    cfg = tmp_path / "cfg.yml"
+    cfg.write_text("settings:\n  foo: 1\n", encoding="utf-8")
+    monkeypatch.setattr(settings, "_config", None)
+    monkeypatch.setattr(settings, "_config_path", None)
+    assert settings.load_config(cfg)["settings"]["foo"] == 1
+    cfg.write_text("settings:\n  foo: 2\n", encoding="utf-8")
+    assert settings.load_config(cfg)["settings"]["foo"] == 1
+    assert settings.load_config(cfg, force_reload=True)["settings"]["foo"] == 2
+
+
+def test_load_config_path_change(tmp_path, monkeypatch):
+    cfg1 = tmp_path / "cfg1.yml"
+    cfg1.write_text("settings:\n  foo: 1\n", encoding="utf-8")
+    cfg2 = tmp_path / "cfg2.yml"
+    cfg2.write_text("settings:\n  foo: 2\n", encoding="utf-8")
+    monkeypatch.setattr(settings, "_config", None)
+    monkeypatch.setattr(settings, "_config_path", None)
+    assert settings.load_config(cfg1)["settings"]["foo"] == 1
+    assert settings.load_config(cfg2)["settings"]["foo"] == 2
